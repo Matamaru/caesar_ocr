@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.6.1.dev0 - 2026-01-25 Phase 4 Training Pipeline
+- Development bump after Phase 4 completion.
+
 ## v0.6.0 - 2026-01-25 Phase 4 Training Pipeline
 - Added dataset quality checks and JSONL validation tooling.
 - Added dataset quality check script and tests.
