@@ -11,7 +11,7 @@ This module provides a single entry point, `analyze_bytes`, which:
 import io
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Sequence
 
 from PIL import Image
 
@@ -245,10 +245,7 @@ def _run_ocr(im: Image.Image, *, lang: str, page: int) -> Dict[str, Any]:
     return {"ocr_text": normalize_text(ocr_text), "tokens": tokens, "predictions": predictions}
 
 
-def analyze_bytes(file_bytes: bytes, *, lang: str = "eng+deu") -> OcrResult:
-    """Run OCR and heuristic extraction on PDF/image bytes."""
-    pages = load_images_from_bytes(file_bytes, dpi=300)
-
+def analyze_pages(pages: Sequence, *, lang: str = "eng+deu") -> OcrResult:
     all_predictions: List[str] = []
     all_text: List[str] = []
     all_tokens: List[Dict[str, Any]] = []
@@ -266,7 +263,6 @@ def analyze_bytes(file_bytes: bytes, *, lang: str = "eng+deu") -> OcrResult:
     doc_type = classify_doc(predictions)
     fields: Dict[str, Any] = {}
 
-    # Field extraction depends on document type.
     if doc_type == "Passport":
         fields = extract_passport_fields(predictions)
     elif doc_type == "Degree Certificate":
@@ -282,3 +278,9 @@ def analyze_bytes(file_bytes: bytes, *, lang: str = "eng+deu") -> OcrResult:
         tokens=tokens,
         page_texts=all_text,
     )
+
+
+def analyze_bytes(file_bytes: bytes, *, lang: str = "eng+deu") -> OcrResult:
+    """Run OCR and heuristic extraction on PDF/image bytes."""
+    pages = load_images_from_bytes(file_bytes, dpi=300)
+    return analyze_pages(pages, lang=lang)

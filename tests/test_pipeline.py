@@ -28,7 +28,7 @@ def test_pipeline_schema_output(monkeypatch):
     def fake_load_images(_bytes, dpi=300):
         return [type("P", (), {"page": 1, "width": 100, "height": 200, "image": object()})()]
 
-    monkeypatch.setattr("caesar_ocr.pipeline.analyze.analyze_bytes", fake_analyze_bytes)
+    monkeypatch.setattr("caesar_ocr.pipeline.analyze.analyze_pages", lambda _pages, lang="eng+deu": fake_analyze_bytes(None, lang=lang))
     monkeypatch.setattr("caesar_ocr.pipeline.analyze.load_images_from_bytes", fake_load_images)
 
     result = analyze_document_bytes(b"dummy")
@@ -70,7 +70,7 @@ def test_pipeline_regex_rules(tmp_path: Path, monkeypatch):
     def fake_load_images(_bytes, dpi=300):
         return [type("P", (), {"page": 1, "width": 100, "height": 200, "image": object()})()]
 
-    monkeypatch.setattr("caesar_ocr.pipeline.analyze.analyze_bytes", fake_analyze_bytes)
+    monkeypatch.setattr("caesar_ocr.pipeline.analyze.analyze_pages", lambda _pages, lang="eng+deu": fake_analyze_bytes(None, lang=lang))
     monkeypatch.setattr("caesar_ocr.pipeline.analyze.load_images_from_bytes", fake_load_images)
 
     result = analyze_document_bytes(b"dummy", regex_rules_path=str(rules_path))
@@ -100,7 +100,7 @@ def test_pipeline_multi_page_tokens(monkeypatch):
             type("P", (), {"page": 2, "width": 100, "height": 200, "image": object()})(),
         ]
 
-    monkeypatch.setattr("caesar_ocr.pipeline.analyze.analyze_bytes", fake_analyze_bytes)
+    monkeypatch.setattr("caesar_ocr.pipeline.analyze.analyze_pages", lambda _pages, lang="eng+deu": fake_analyze_bytes(None, lang=lang))
     monkeypatch.setattr("caesar_ocr.pipeline.analyze.load_images_from_bytes", fake_load_images)
 
     result = analyze_document_bytes(b"dummy")

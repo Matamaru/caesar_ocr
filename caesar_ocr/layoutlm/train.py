@@ -11,6 +11,8 @@ from PIL import Image
 import torch
 from torch.utils.data import Dataset
 
+from .utils import normalize_box
+
 
 def read_jsonl(path: pathlib.Path) -> List[Dict[str, object]]:
     """
@@ -45,25 +47,6 @@ def collect_labels(records: List[Dict[str, object]]) -> List[str]:
         labels_list = ["O"] + labels_list
 
     return labels_list
-
-
-def normalize_box(box: List[int], width: int, height: int) -> List[int]:
-    """
-    Normalize bounding box coordinates to a 0-1000 scale.
-    Normalization is done relative to the image dimensions.
-
-    :param box: Bounding box as [x0, y0, x1, y1].
-    :param width: Width of the image.
-    :param height: Height of the image.
-    :return: Normalized bounding box as [x0, y0, x1, y1].
-    """
-    x0, y0, x1, y1 = box
-    return [
-        max(0, min(1000, int(1000 * x0 / width))),
-        max(0, min(1000, int(1000 * y0 / height))),
-        max(0, min(1000, int(1000 * x1 / width))),
-        max(0, min(1000, int(1000 * y1 / height))),
-    ]
 
 
 @dataclass

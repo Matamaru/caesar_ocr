@@ -8,49 +8,19 @@ import pathlib
 from typing import Dict, List, Tuple
 
 from PIL import Image
-import torch
-import pytesseract
-from transformers import AutoProcessor, LayoutLMv3ForTokenClassification
+
+from .layoutlm.token_infer import TokenInferer
+from .ocr.tesseract import ocr_tokens_from_image
 
 
 def _read_jsonl(path: pathlib.Path) -> List[Dict[str, object]]:
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
 
 
-def _normalize_box(box: List[int], width: int, height: int) -> List[int]:
-    x0, y0, x1, y1 = box
-    return [
-        max(0, min(1000, int(1000 * x0 / width))),
-        max(0, min(1000, int(1000 * y0 / height))),
-        max(0, min(1000, int(1000 * x1 / width))),
-        max(0, min(1000, int(1000 * y1 / height))),
-    ]
-
-
-def _load_labels(model_dir: pathlib.Path, model) -> Dict[int, str]:
-    labels_path = model_dir / "labels.json"
-    if labels_path.exists():
-        labels = json.loads(labels_path.read_text())
-        return {idx: label for idx, label in enumerate(labels)}
-    return model.config.id2label
-
-
 def _ocr_tokens(image: Image.Image, *, lang: str) -> Tuple[str, List[str], List[List[int]]]:
-    data = pytesseract.image_to_data(image, lang=lang, output_type=pytesseract.Output.DICT)
-    tokens: List[str] = []
-    bboxes: List[List[int]] = []
-    n = len(data["text"])
-    for i in range(n):
-        text = (data["text"][i] or "").strip()
-        if not text:
-            continue
-        left = int(data["left"][i])
-        top = int(data["top"][i])
-        width = int(data["width"][i])
-        height = int(data["height"][i])
-        tokens.append(text)
-        bboxes.append([left, top, left + width, top + height])
-    full_text = " ".join(tokens)
+    full_text, token_dicts = ocr_tokens_from_image(image, lang=lang)
+    tokens = [t["text"] for t in token_dicts]
+    bboxes = [t["bbox"] for t in token_dicts]
     return full_text, tokens, bboxes
 
 
@@ -116,11 +86,7 @@ def main() -> None:
     args = parser.parse_args()
 
     records = _records_from_file(args.input, args.page, lang=args.lang)
-    processor = AutoProcessor.from_pretrained(args.model_dir, apply_ocr=False)
-    model = LayoutLMv3ForTokenClassification.from_pretrained(args.model_dir)
-    model.eval()
-
-    id2label = _load_labels(args.model_dir, model)
+    inferer = TokenInferer.from_model_dir(str(args.model_dir))
 
     outputs = []
     for rec in records:
@@ -137,27 +103,13 @@ def main() -> None:
             image = pages[page_idx].convert("RGB")
         else:
             image = Image.open(image_path).convert("RGB")
-        width, height = image.size
         tokens = rec["tokens"]
-        boxes = [_normalize_box(b, width, height) for b in rec["bboxes"]]
-
-        encoding = processor(
-            images=image,
-            text=tokens,
-            boxes=boxes,
-            truncation=True,
-            padding="max_length",
-            max_length=512,
-            return_tensors="pt",
-        )
-        with torch.no_grad():
-            logits = model(**encoding).logits.squeeze(0)
-
-        pred_ids = logits.argmax(-1).tolist()
-        labels = [id2label.get(idx, "O") for idx in pred_ids[: len(tokens)]]
+        boxes = rec["bboxes"]
+        labels, scores = inferer.infer(image, tokens, boxes)
 
         out = dict(rec)
         out["labels"] = labels
+        out["scores"] = scores
         outputs.append(out)
 
     args.output.write_text("\n".join(json.dumps(rec, ensure_ascii=True) for rec in outputs))

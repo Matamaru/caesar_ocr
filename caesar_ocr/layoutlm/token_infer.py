@@ -2,41 +2,17 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 
 import torch
 from PIL import Image
 from transformers import AutoProcessor, LayoutLMv3ForTokenClassification
 
-
-def _normalize_box(box: List[int], width: int, height: int) -> List[int]:
-    """
-    Normalize bounding box coordinates to a 0-1000 scale.
-    Normalization is done relative to the image dimensions.
-
-    :param box: Bounding box as [x0, y0, x1, y1].
-    :param width: Width of the image.
-    :param height: Height of the image.
-    :return: Normalized bounding box as [x0, y0, x1, y1].
-    """
-    x0, y0, x1, y1 = box
-    return [
-        max(0, min(1000, int(1000 * x0 / width))),
-        max(0, min(1000, int(1000 * y0 / height))),
-        max(0, min(1000, int(1000 * x1 / width))),
-        max(0, min(1000, int(1000 * y1 / height))),
-    ]
+from .utils import normalize_box
 
 
 def _load_labels(model_dir: str, model) -> Dict[int, str]:
-    """
-    Load label mappings from model directory or use model config.
-
-    :param model_dir: Directory of the pretrained LayoutLM model.
-    :param model: Loaded LayoutLM model.
-    :return: Dictionary mapping label IDs to label strings.
-    """
-    # Try to load labels from labels.json file
     labels_path = f"{model_dir}/labels.json"
     try:
         import json
@@ -47,6 +23,73 @@ def _load_labels(model_dir: str, model) -> Dict[int, str]:
         return model.config.id2label
 
 
+def _align_predictions(pred_ids: List[int], word_ids: List[Optional[int]], id2label: Dict[int, str]) -> List[str]:
+    labels: List[str] = ["O"] * (max([i for i in word_ids if i is not None], default=-1) + 1)
+    seen = set()
+    for idx, word_id in enumerate(word_ids):
+        if word_id is None or word_id in seen:
+            continue
+        seen.add(word_id)
+        labels[word_id] = id2label.get(pred_ids[idx], "O")
+    return labels
+
+
+@dataclass
+class TokenInferer:
+    model_dir: str
+    processor: object
+    model: object
+    id2label: Dict[int, str]
+
+    @classmethod
+    def from_model_dir(cls, model_dir: str) -> "TokenInferer":
+        processor = AutoProcessor.from_pretrained(model_dir, apply_ocr=False)
+        model = LayoutLMv3ForTokenClassification.from_pretrained(model_dir)
+        model.eval()
+        id2label = _load_labels(model_dir, model)
+        return cls(model_dir=model_dir, processor=processor, model=model, id2label=id2label)
+
+    def infer(self, image: Image.Image, tokens: List[str], bboxes: List[List[int]], *, max_length: int = 512) -> Tuple[List[str], List[float]]:
+        width, height = image.size
+        norm_boxes = [normalize_box(b, width, height) for b in bboxes]
+
+        encoding = self.processor(
+            images=image,
+            text=tokens,
+            boxes=norm_boxes,
+            truncation=True,
+            padding="max_length",
+            max_length=max_length,
+            return_tensors="pt",
+        )
+        with torch.no_grad():
+            logits = self.model(**encoding).logits.squeeze(0)
+
+        probs = torch.softmax(logits, dim=-1)
+        pred_ids = logits.argmax(-1).tolist()
+
+        word_ids = None
+        if hasattr(encoding, "word_ids"):
+            try:
+                word_ids = encoding.word_ids()
+            except TypeError:
+                word_ids = encoding.word_ids(batch_index=0)
+
+        if word_ids:
+            labels = _align_predictions(pred_ids, word_ids, self.id2label)
+            score_map: Dict[int, float] = {}
+            for idx, word_id in enumerate(word_ids):
+                if word_id is None:
+                    continue
+                score_map.setdefault(word_id, float(probs[idx].max().item()))
+            scores = [score_map.get(i, 0.0) for i in range(len(labels))]
+            return labels, scores
+
+        labels = [self.id2label.get(idx, "O") for idx in pred_ids[: len(tokens)]]
+        scores = probs.max(dim=-1).values.tolist()[: len(tokens)]
+        return labels, scores
+
+
 def infer_tokens(
     image: Image.Image,
     tokens: List[str],
@@ -55,46 +98,6 @@ def infer_tokens(
     model_dir: str,
     max_length: int = 512,
 ) -> Tuple[List[str], Optional[List[float]]]:
-    """
-    Perform token classification inference using a pretrained LayoutLMv3 model.
-
-    :param image: Input image.
-    :param tokens: List of tokens corresponding to the image.
-    :param bboxes: List of bounding boxes for each token.
-    :param model_dir: Directory of the pretrained LayoutLM model.
-    :param max_length: Maximum sequence length for the model.
-    :return: Tuple containing the list of predicted labels and optional confidence scores.
-    """
-    # Load processor and model    
-    processor = AutoProcessor.from_pretrained(model_dir, apply_ocr=False)
-    model = LayoutLMv3ForTokenClassification.from_pretrained(model_dir)
-    
-    # Set model to evaluation mode
-    model.eval()
-
-    # Normalize bounding boxes
-    width, height = image.size
-    norm_boxes = [_normalize_box(b, width, height) for b in bboxes]
-
-    # Prepare inputs for the model
-    encoding = processor(
-        images=image,
-        text=tokens,
-        boxes=norm_boxes,
-        truncation=True,
-        padding="max_length",
-        max_length=max_length,
-        return_tensors="pt",
-    )
-    # Disable gradient calculations for inference
-    with torch.no_grad():
-        logits = model(**encoding).logits.squeeze(0)
-
-    # Post-process logits to obtain predicted labels and confidence scores
-    probs = torch.softmax(logits, dim=-1)
-    pred_ids = logits.argmax(-1).tolist()
-    id2label = _load_labels(model_dir, model)
-    labels = [id2label.get(idx, "O") for idx in pred_ids[: len(tokens)]]
-    scores = probs.max(dim=-1).values.tolist()[: len(tokens)]
-
+    inferer = TokenInferer.from_model_dir(model_dir)
+    labels, scores = inferer.infer(image, tokens, bboxes, max_length=max_length)
     return labels, scores

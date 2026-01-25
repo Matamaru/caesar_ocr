@@ -2,11 +2,11 @@
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from ..layoutlm.infer import LayoutLMResult, analyze_bytes_layoutlm
-from ..layoutlm.token_infer import infer_tokens
-from ..ocr.engine import OcrResult, analyze_bytes
+from ..layoutlm.token_infer import TokenInferer
+from ..ocr.engine import OcrResult, analyze_pages
 from ..io.loaders import load_images_from_bytes
 from ..regex.engine import load_rules, run_rules
 from .schemas import LayoutLMClassification, LayoutLMTokenClassification, OcrDocument, OcrPage, OcrToken, PipelineResult
@@ -39,8 +39,8 @@ def analyze_document_bytes(
     layoutlm_token_model_dir: Optional[str] = None,
 ) -> AssistantToolResult:
     """Analyze bytes with OCR and optional LayoutLM classifier."""
-    ocr_result = analyze_bytes(file_bytes, lang=lang)
     pages = load_images_from_bytes(file_bytes, dpi=300)
+    ocr_result = analyze_pages(pages, lang=lang)
     page_items = []
     layoutlm_result = None
     if layoutlm_model_dir:
@@ -61,16 +61,12 @@ def analyze_document_bytes(
     if layoutlm_token_model_dir and pages:
         all_labels: List[str] = []
         all_scores: List[float] = []
+        inferer = TokenInferer.from_model_dir(layoutlm_token_model_dir)
         for page in pages:
             page_tokens = [t for t in ocr_result.tokens if t.get("page", page.page) == page.page]
             token_texts = [t.get("text", "") for t in page_tokens]
             token_boxes = [t.get("bbox") or [0, 0, 0, 0] for t in page_tokens]
-            labels, scores = infer_tokens(
-                page.image,
-                token_texts,
-                token_boxes,
-                model_dir=layoutlm_token_model_dir,
-            )
+            labels, scores = inferer.infer(page.image, token_texts, token_boxes)
             token_labels_by_page[page.page] = labels
             if scores:
                 token_scores_by_page[page.page] = scores

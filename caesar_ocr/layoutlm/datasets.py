@@ -22,6 +22,7 @@ class LayoutLMTokenRecord:
     :param labels: List of labels corresponding to tokens.
     :param spans: List of span dictionaries with additional metadata.
     """
+    id: Optional[str]
     image: Optional[str]
     text: str
     doc_id: Optional[str]
@@ -112,16 +113,21 @@ def quality_checks(rec: LayoutLMTokenRecord) -> Dict[str, object]:
         issues.append("len_mismatch_tokens_labels")
 
     # bbox bounds in LayoutLM normalized space (0..1000)
-    # normalization is necessary for comparison across different image sizes 
     bbox_oob = 0
-    for box in rec.bboxes:
-        if len(box) != 4:
-            continue
-        x0, y0, x1, y1 = box
-        if not (0 <= x0 <= 1000 and 0 <= y0 <= 1000 and 0 <= x1 <= 1000 and 0 <= y1 <= 1000):
-            bbox_oob += 1
-    if bbox_oob:
-        issues.append("bbox_out_of_bounds")
+    bbox_space = "normalized"
+    if rec.bboxes:
+        max_coord = max(max(box) for box in rec.bboxes if len(box) == 4)
+        if max_coord > 1000:
+            bbox_space = "pixel"
+        else:
+            for box in rec.bboxes:
+                if len(box) != 4:
+                    continue
+                x0, y0, x1, y1 = box
+                if not (0 <= x0 <= 1000 and 0 <= y0 <= 1000 and 0 <= x1 <= 1000 and 0 <= y1 <= 1000):
+                    bbox_oob += 1
+            if bbox_oob:
+                issues.append("bbox_out_of_bounds")
 
     # label coverage ratio
     label_count = sum(1 for lbl in rec.labels if lbl and lbl != "O")
@@ -133,6 +139,7 @@ def quality_checks(rec: LayoutLMTokenRecord) -> Dict[str, object]:
         "issues": issues,
         "label_coverage": coverage,
         "bbox_oob": bbox_oob,
+        "bbox_space": bbox_space,
         "num_tokens": len(rec.tokens),
         "num_labels": len(rec.labels),
     }

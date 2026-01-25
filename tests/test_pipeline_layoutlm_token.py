@@ -24,15 +24,18 @@ def test_pipeline_layoutlm_token_inference(monkeypatch):
             type("P", (), {"page": 2, "width": 100, "height": 200, "image": object()})(),
         ]
 
-    def fake_infer_tokens(_image, tokens, bboxes, model_dir):
-        assert model_dir == "/tmp/model"
-        if tokens == ["Hello", "World"]:
-            return ["B-TEST", "I-TEST"], [0.9, 0.8]
-        return [], []
+    class FakeInferer:
+        def __init__(self, model_dir):
+            assert model_dir == "/tmp/model"
 
-    monkeypatch.setattr(analyze_mod, "analyze_bytes", fake_analyze_bytes)
+        def infer(self, _image, tokens, bboxes):
+            if tokens == ["Hello", "World"]:
+                return ["B-TEST", "I-TEST"], [0.9, 0.8]
+            return [], []
+
+    monkeypatch.setattr(analyze_mod, "analyze_pages", lambda _pages, lang="eng+deu": fake_analyze_bytes(None, lang=lang))
     monkeypatch.setattr(analyze_mod, "load_images_from_bytes", fake_load_images)
-    monkeypatch.setattr(analyze_mod, "infer_tokens", fake_infer_tokens)
+    monkeypatch.setattr(analyze_mod, "TokenInferer", type("T", (), {"from_model_dir": staticmethod(lambda d: FakeInferer(d))}))
 
     result = analyze_mod.analyze_document_bytes(b"dummy", layoutlm_token_model_dir="/tmp/model")
     data = result.to_dict()
