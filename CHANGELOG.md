@@ -1,7 +1,10 @@
 # Changelog
 
-## v0.3.1.dev0 - 2026-01-25
-- Development version bump after schema, regex, IO wiring, and CLI refactors.
+## v0.3.0 - 2026-01-25 Phase 1 OCR Core
+- Completed OCR core with token+bbox output and multi-page support.
+- Wired canonical schema output and regex rules into the pipeline.
+- Added IO loaders/writers, LayoutLM helpers, and expanded tests.
+- Cleaned CLI entry points and dataset tooling.
 
 ## v0.2.0 - 2026-01-25 Phase 0 Baseline and Structure
 - Restructured package into clean OCR + LayoutLMv3 layout.

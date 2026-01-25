@@ -3,6 +3,7 @@ import io
 from PIL import Image
 
 import caesar_ocr.ocr.engine as ocr
+from caesar_ocr.ocr.postprocess import normalize_text, normalize_tokens
 
 
 def _png_bytes(size=(10, 10), color=(255, 255, 255)) -> bytes:
@@ -82,24 +83,21 @@ def test_analyze_bytes_pdf(monkeypatch):
 
     def fake_load_images(_bytes, dpi=300):
         assert dpi == 300
-        return [type(\"P\", (), {\"image\": dummy_image})()]
+        return [type("P", (), {"image": dummy_image, "page": 1})()]
 
     def fake_preprocess(_im):
         return "preprocessed"
 
-    def fake_predictions(_im):
-        return [
-            "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<",
-            "L898902C36UTO7408122F1204159ZE184226B<<<<<10",
+    def fake_tokens(_im, **_kwargs):
+        tokens = [
+            {"text": "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<"},
+            {"text": "L898902C36UTO7408122F1204159ZE184226B<<<<<10"},
         ]
-
-    def fake_text(_im, psm=6):
-        return "ignored"
+        return "ignored", tokens
 
     monkeypatch.setattr(ocr, "load_images_from_bytes", fake_load_images)
     monkeypatch.setattr(ocr, "preprocess_image", fake_preprocess)
-    monkeypatch.setattr(ocr, "_ocr_predictions", fake_predictions)
-    monkeypatch.setattr(ocr, "_ocr_text", fake_text)
+    monkeypatch.setattr(ocr, "_ocr_tokens", fake_tokens)
 
     result = ocr.analyze_bytes(b"%PDF-1.4\n...")
     assert result.doc_type == "Passport"
@@ -110,16 +108,43 @@ def test_analyze_bytes_image(monkeypatch):
     def fake_preprocess(_im):
         return "preprocessed"
 
-    def fake_predictions(_im):
-        return ["invoice"]
-
-    def fake_text(_im, psm=6):
-        return "Invoice No: A12\nAccounting period: 01/2024"
+    def fake_tokens(_im, **_kwargs):
+        tokens = [{"text": "invoice"}]
+        return "Invoice No: A12\nAccounting period: 01/2024", tokens
 
     monkeypatch.setattr(ocr, "preprocess_image", fake_preprocess)
-    monkeypatch.setattr(ocr, "_ocr_predictions", fake_predictions)
-    monkeypatch.setattr(ocr, "_ocr_text", fake_text)
+    monkeypatch.setattr(ocr, "_ocr_tokens", fake_tokens)
 
     result = ocr.analyze_bytes(_png_bytes())
     assert result.doc_type == "Financial Report"
     assert "A12" in result.fields.get("invoice_numbers", [])
+
+
+def test_normalize_text():
+    assert normalize_text("a   b\nc") == "a b c"
+
+
+def test_normalize_tokens():
+    tokens = [{"text": "  hello "}, {"text": ""}, {"text": " world"}]
+    normalized = normalize_tokens(tokens)
+    assert [t["text"] for t in normalized] == ["hello", "world"]
+
+
+def test_analyze_bytes_passes_lang(monkeypatch):
+    seen = {"pred": None, "text": None}
+
+    def fake_preprocess(_im):
+        return "preprocessed"
+
+    def fake_tokens(_im, **_kwargs):
+        seen["pred"] = _kwargs.get("lang")
+        seen["text"] = _kwargs.get("lang")
+        tokens = [{"text": "invoice"}]
+        return "Invoice No: A12\nAccounting period: 01/2024", tokens
+
+    monkeypatch.setattr(ocr, "preprocess_image", fake_preprocess)
+    monkeypatch.setattr(ocr, "_ocr_tokens", fake_tokens)
+
+    _ = ocr.analyze_bytes(_png_bytes(), lang="deu")
+    assert seen["pred"] == "deu"
+    assert seen["text"] == "deu"

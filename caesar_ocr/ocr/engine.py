@@ -15,8 +15,8 @@ from typing import Any, Dict, List
 
 from PIL import Image
 
-from .postprocess import preprocess_image
-from .tesseract import ocr_predictions, ocr_text
+from .postprocess import preprocess_image, normalize_text, normalize_tokens
+from .tesseract import ocr_predictions, ocr_text, ocr_tokens
 from ..io.loaders import load_images_from_bytes
 
 #=== Helpers =============================================================
@@ -37,6 +37,11 @@ def _ocr_predictions(preprocessed_im, lang: str = "eng+deu", psm: int = 11) -> L
 def _ocr_text(preprocessed_im, lang: str = "eng+deu", psm: int = 3) -> str:
     """Compatibility wrapper for tests; delegates to tesseract adapter."""
     return ocr_text(preprocessed_im, lang=lang, psm=psm)
+
+
+def _ocr_tokens(preprocessed_im, lang: str = "eng+deu", psm: int = 6) -> tuple[str, List[Dict[str, Any]]]:
+    """Compatibility wrapper for tests; delegates to tesseract adapter."""
+    return ocr_tokens(preprocessed_im, lang=lang, psm=psm)
 
 
 def detect_mrz_lines(all_predictions: List[str]) -> List[str]:
@@ -92,6 +97,7 @@ DATE_RE = re.compile(r"(?:(?:19|20)\d{2}[-./](?:0?[1-9]|1[0-2])[-./](?:0?[1-9]|[
                      r"(?:(?:0?[1-9]|[12]\d|3[01])[-./](?:0?[1-9]|1[0-2])[-./](?:19|20)\d{2})")
 
 # MRZ TD3 parser (2 lines, 44 chars each) – tolerant cleanup
+
 
 def _extract_passport_data_from_mrz(mrz_lines: List[str]) -> Dict[str, Any]:
     """Parse TD3-style MRZ (2 lines) into a minimal field dict."""
@@ -225,29 +231,54 @@ class OcrResult:
     predictions: List[str]
     ocr_text: str
     fields: Dict[str, Any]
+    tokens: List[Dict[str, Any]]
+    page_texts: List[str]
+
+
+def _run_ocr(im: Image.Image, *, lang: str, page: int) -> Dict[str, Any]:
+    pim = preprocess_image(im)
+    ocr_text, tokens = _ocr_tokens(pim, lang=lang, psm=6)
+    tokens = normalize_tokens(tokens)
+    for token in tokens:
+        token["page"] = page
+    predictions = [t["text"].lower() for t in tokens]
+    return {"ocr_text": normalize_text(ocr_text), "tokens": tokens, "predictions": predictions}
 
 
 def analyze_bytes(file_bytes: bytes, *, lang: str = "eng+deu") -> OcrResult:
     """Run OCR and heuristic extraction on PDF/image bytes."""
     pages = load_images_from_bytes(file_bytes, dpi=300)
-    im = pages[0].image
 
-    # OCR pipeline.
-    pim = preprocess_image(im)
-    predictions = _ocr_predictions(pim, lang=lang)
-    ocr_text = _ocr_text(pim, lang=lang, psm=6)
+    all_predictions: List[str] = []
+    all_text: List[str] = []
+    all_tokens: List[Dict[str, Any]] = []
+
+    for page in pages:
+        result = _run_ocr(page.image, lang=lang, page=page.page)
+        all_predictions.extend(result["predictions"])
+        all_text.append(result["ocr_text"])
+        all_tokens.extend(result["tokens"])
+
+    predictions = all_predictions
+    ocr_text = "\n".join(all_text)
+    tokens = all_tokens
+
     doc_type = classify_doc(predictions)
     fields: Dict[str, Any] = {}
 
     # Field extraction depends on document type.
     if doc_type == "Passport":
         fields = extract_passport_fields(predictions)
-        ocr_text = "\n".join(predictions)
     elif doc_type == "Degree Certificate":
         fields = extract_diploma_fields(ocr_text)
-        predictions = ocr_text.splitlines()
     elif doc_type == "Financial Report":
         fields = extract_financial_report_fields(ocr_text)
-        predictions = ocr_text.splitlines()
 
-    return OcrResult(doc_type=doc_type, predictions=predictions, ocr_text=ocr_text, fields=fields)
+    return OcrResult(
+        doc_type=doc_type,
+        predictions=predictions,
+        ocr_text=ocr_text,
+        fields=fields,
+        tokens=tokens,
+        page_texts=all_text,
+    )

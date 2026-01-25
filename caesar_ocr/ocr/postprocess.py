@@ -7,6 +7,24 @@ import numpy as np
 from PIL import Image
 
 
+def normalize_text(text: str) -> str:
+    """Normalize whitespace in OCR text."""
+    return " ".join(text.split())
+
+
+def normalize_tokens(tokens):
+    """Normalize token text and ensure stable ordering keys exist."""
+    out = []
+    for tok in tokens:
+        text = str(tok.get("text", "")).strip()
+        if not text:
+            continue
+        tok = dict(tok)
+        tok["text"] = text
+        out.append(tok)
+    return out
+
+
 def _to_cv(im: Image.Image) -> np.ndarray:
     """Convert PIL image to OpenCV BGR array."""
     return cv2.cvtColor(np.array(im), cv2.COLOR_RGB2BGR)
