@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.5.0 - 2026-01-25 Phase 3 LayoutLMv3 Integration
+- Added token-classifier inference and merged labels/scores into schema.
+- Added unified CLI subcommand (`analyze`) with doc + token models.
+- Wired training metrics (precision/recall/F1) into token classifier training.
+
 ## v0.4.1.dev0 - 2026-01-25 Phase 2 Hybrid Regex System
 - Development bump after Phase 2 completion.
 

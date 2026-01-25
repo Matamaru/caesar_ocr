@@ -58,3 +58,22 @@ def test_precision_recall_f1():
     assert metrics["B"]["recall"] == 1.0
     assert metrics["O"]["precision"] == 1.0
     assert metrics["O"]["recall"] == 1.0
+
+
+def test_train_token_compute_metrics_flattened():
+    from caesar_ocr.layoutlm.metrics import precision_recall_f1
+
+    y_true = ["A", "A", "B", "O"]
+    y_pred = ["A", "B", "B", "O"]
+    per_label = precision_recall_f1(y_true, y_pred, labels=["A", "B", "O"])
+    flat = {}
+    for label, metrics in per_label.items():
+        flat[f"{label}_precision"] = float(metrics["precision"])
+        flat[f"{label}_recall"] = float(metrics["recall"])
+        flat[f"{label}_f1"] = float(metrics["f1"])
+        flat[f"{label}_support"] = float(metrics["support"])
+
+    assert flat["A_precision"] == 1.0
+    assert flat["A_recall"] == 0.5
+    assert flat["B_precision"] == 0.5
+    assert flat["B_recall"] == 1.0

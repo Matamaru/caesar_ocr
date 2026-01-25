@@ -15,6 +15,7 @@ from transformers import (
 )
 
 from .layoutlm.train import LayoutLMTokenDataset, collect_labels, read_jsonl
+from .layoutlm.metrics import precision_recall_f1
 
 
 def main() -> None:
@@ -32,14 +33,14 @@ def main() -> None:
     train_records = read_jsonl(args.train)
     eval_records = read_jsonl(args.eval) if args.eval else None
 
-    labels = collect_labels(train_records)
-    label2id = {label: idx for idx, label in enumerate(labels)}
+    labels_list = collect_labels(train_records)
+    label2id = {label: idx for idx, label in enumerate(labels_list)}
     id2label = {idx: label for label, idx in label2id.items()}
 
     processor = AutoProcessor.from_pretrained(args.model_name, apply_ocr=False)
     model = LayoutLMv3ForTokenClassification.from_pretrained(
         args.model_name,
-        num_labels=len(labels),
+        num_labels=len(labels_list),
         id2label=id2label,
         label2id=label2id,
     )
@@ -69,6 +70,27 @@ def main() -> None:
         args_kwargs["eval_strategy"] = eval_value
         training_args = TrainingArguments(**args_kwargs)
 
+    def compute_metrics(eval_pred):
+        logits, labels = eval_pred
+        pred_ids = logits.argmax(-1)
+        # Flatten and drop masked tokens
+        y_true = []
+        y_pred = []
+        for pred_row, true_row in zip(pred_ids, labels):
+            for p, t in zip(pred_row, true_row):
+                if t == -100:
+                    continue
+                y_true.append(id2label[int(t)])
+                y_pred.append(id2label[int(p)])
+        per_label = precision_recall_f1(y_true, y_pred, labels=labels_list)
+        flat: dict[str, float] = {}
+        for label, metrics in per_label.items():
+            flat[f"{label}_precision"] = float(metrics["precision"])
+            flat[f"{label}_recall"] = float(metrics["recall"])
+            flat[f"{label}_f1"] = float(metrics["f1"])
+            flat[f"{label}_support"] = float(metrics["support"])
+        return flat
+
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -76,6 +98,7 @@ def main() -> None:
         eval_dataset=eval_ds,
         tokenizer=processor,
         data_collator=default_data_collator,
+        compute_metrics=compute_metrics if eval_ds is not None else None,
     )
 
     trainer.train()
@@ -83,7 +106,7 @@ def main() -> None:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(args.output_dir)
     processor.save_pretrained(args.output_dir)
-    (args.output_dir / "labels.json").write_text(json.dumps(labels, ensure_ascii=True, indent=2))
+    (args.output_dir / "labels.json").write_text(json.dumps(labels_list, ensure_ascii=True, indent=2))
     print(f"Saved model to {args.output_dir}")
 
 

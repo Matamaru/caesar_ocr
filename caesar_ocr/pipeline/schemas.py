@@ -13,6 +13,8 @@ class OcrToken:
     start: Optional[int] = None
     end: Optional[int] = None
     conf: Optional[float] = None
+    label: Optional[str] = None
+    label_score: Optional[float] = None
 
 
 @dataclass

@@ -14,17 +14,18 @@ pip install -e .
 Analyze a PDF/image:
 
 ```bash
-caesar-ocr /path/to/file.pdf --output result.json
+caesar-ocr analyze /path/to/file.pdf --output result.json
 ```
 
-With regex rules and LayoutLM:
+With regex rules and LayoutLM (doc + token):
 
 ```bash
-caesar-ocr /path/to/file.pdf \
+caesar-ocr analyze /path/to/file.pdf \
   --output result.json \
   --regex-rules rules.yaml \
   --regex-debug \
   --layoutlm-model-dir models/layoutlmv3-doc \
+  --layoutlm-token-model-dir models/layoutlmv3-token \
   --layoutlm-lang en
 ```
 

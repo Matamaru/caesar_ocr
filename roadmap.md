@@ -29,6 +29,8 @@ This roadmap resets the project with a clear architecture for OCR + LayoutLMv3, 
 - Unified inference pipeline: OCR -> tokens/boxes -> LayoutLMv3 -> merge.
 - Language flag support for `en`, `de`, `en+de` in both OCR + LayoutLM.
 - Minimal evaluation metrics (precision/recall/F1 per label).
+- Include token-classifier outputs in schema per page.
+- Add unified CLI mode to run doc + token classifiers together.
 
 ## Phase 4 — Training Pipeline (JSONL)
 - JSONL dataset schema with validation.
