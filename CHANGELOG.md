@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.4.1.dev0 - 2026-01-25 Phase 2 Hybrid Regex System
+- Development bump after Phase 2 completion.
+
 ## v0.4.0 - 2026-01-25 Phase 2 Hybrid Regex System
 - Added validators, confidence handling, and debug traces for regex rules.
 - Added default plugin/validator registries and updated docs/tests.
