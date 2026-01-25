@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.6.0 - 2026-01-25 Phase 4 Training Pipeline
+- Added dataset quality checks and JSONL validation tooling.
+- Added dataset quality check script and tests.
+
 ## v0.5.1.dev0 - 2026-01-25 Phase 3 LayoutLMv3 Integration
 - Development bump after Phase 3 completion.
 

@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from caesar_ocr.layoutlm.datasets import LayoutLMTokenRecord, iter_jsonl, validate_record
+from caesar_ocr.layoutlm.datasets import LayoutLMTokenRecord, iter_jsonl, validate_record, quality_checks
 from caesar_ocr.layoutlm.metrics import precision_recall_f1
 
 
@@ -45,6 +45,23 @@ def test_validate_record_errors():
     errors = validate_record(rec)
     assert "text is empty" in errors
     assert "tokens and bboxes length mismatch" in errors
+
+
+def test_quality_checks():
+    rec = LayoutLMTokenRecord(
+        id=None,
+        image=None,
+        text="Hello",
+        doc_id=None,
+        page=None,
+        tokens=["Hello"],
+        bboxes=[[0, 0, 1000, 1000]],
+        labels=["B-TEST"],
+        spans=[],
+    )
+    qc = quality_checks(rec)
+    assert qc["issues"] == []
+    assert qc["label_coverage"] == 1.0
 
 
 def test_precision_recall_f1():

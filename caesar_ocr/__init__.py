@@ -3,7 +3,7 @@ from .ocr.engine import OcrResult, analyze_bytes
 from .pipeline.analyze import AssistantToolResult, analyze_document_bytes
 from .pipeline.schemas import PipelineResult
 
-__version__ = "0.5.1.dev0"
+__version__ = "0.6.0"
 
 __all__ = [
     "OcrResult",

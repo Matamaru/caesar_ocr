@@ -108,6 +108,9 @@ Render PDF pages to PNGs for dataset preparation.
 ### `scripts/split_jsonl.py`
 Split a JSONL dataset into train/val.
 
+### `scripts/check_dataset_quality.py`
+Run data quality checks on JSONL datasets (bbox bounds, label coverage, mismatches).
+
 ## Package layout
 
 - `caesar_ocr/ocr/` OCR engine + post-processing (tokens + bboxes)
