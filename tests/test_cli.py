@@ -5,7 +5,7 @@ import caesar_ocr.cli as cli
 
 
 def test_cli_outputs_json(monkeypatch, tmp_path, capsys):
-    def fake_analyze(_bytes, layoutlm_model_dir=None, lang="eng+deu", layoutlm_lang=None, regex_rules_path=None):
+    def fake_analyze(_bytes, layoutlm_model_dir=None, lang="eng+deu", layoutlm_lang=None, regex_rules_path=None, regex_debug=False):
         class Dummy:
             def to_dict(self, schema: bool = True):
                 return {"ok": True, "lang": lang}
@@ -26,7 +26,7 @@ def test_cli_outputs_json(monkeypatch, tmp_path, capsys):
 
 
 def test_cli_writes_output_file(monkeypatch, tmp_path):
-    def fake_analyze(_bytes, layoutlm_model_dir=None, lang="eng+deu", layoutlm_lang=None, regex_rules_path=None):
+    def fake_analyze(_bytes, layoutlm_model_dir=None, lang="eng+deu", layoutlm_lang=None, regex_rules_path=None, regex_debug=False):
         class Dummy:
             def to_dict(self, schema: bool = True):
                 return {"ok": True}

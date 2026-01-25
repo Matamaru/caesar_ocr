@@ -34,6 +34,7 @@ def analyze_document_bytes(
     lang: str = "eng+deu",
     layoutlm_lang: Optional[str] = None,
     regex_rules_path: Optional[str] = None,
+    regex_debug: bool = False,
 ) -> AssistantToolResult:
     """Analyze bytes with OCR and optional LayoutLM classifier."""
     ocr_result = analyze_bytes(file_bytes, lang=lang)
@@ -73,7 +74,7 @@ def analyze_document_bytes(
         )
     if regex_rules_path:
         rules = load_rules(Path(regex_rules_path))
-        regex_fields = run_rules(ocr_result.ocr_text, rules)
+        regex_fields = run_rules(ocr_result.ocr_text, rules, debug=regex_debug)
         if regex_fields:
             ocr_result.fields.update(regex_fields)
     layout = None

@@ -23,6 +23,7 @@ With regex rules and LayoutLM:
 caesar-ocr /path/to/file.pdf \
   --output result.json \
   --regex-rules rules.yaml \
+  --regex-debug \
   --layoutlm-model-dir models/layoutlmv3-doc \
   --layoutlm-lang en
 ```
@@ -59,9 +60,41 @@ tool_result = analyze_document_bytes(
     lang="eng+deu",
     layoutlm_lang="en",
     regex_rules_path="rules.yaml",
+    regex_debug=True,
 )
 print(tool_result.to_dict())
 ```
+
+## Hybrid regex rules
+
+Rules live in YAML and run in file order. Each rule can either define a regex
+or a plugin. Validators are optional callbacks registered in code.
+
+Example:
+
+```yaml
+- name: invoice_number
+  pattern: '(?i)invoice\s*(no|number)?\s*[:#-]?\s*([A-Z0-9-]{3,})'
+  group: 2
+  output_field: invoice_number
+  confidence: 0.85
+  validators: [is_invoice]
+
+- name: custom_plugin
+  plugin: my_plugin
+```
+
+Supported fields:
+- `name`: rule identifier
+- `pattern`: regex pattern (if omitted, rule is skipped unless `plugin` is set)
+- `group`: capture group to extract (default `0`)
+- `output_field`: output field name (defaults to `name`)
+- `confidence`: numeric confidence (optional) stored as `<field>_confidence`
+- `flags`: regex flags string (e.g., `IM`, `S`)
+- `plugin`: plugin name (function callback)
+- `validators`: list of validator names (function callbacks)
+
+When `--regex-debug` is enabled, output includes `__debug__` entries per rule.
 
 ## Scripts (root `scripts/`)
 

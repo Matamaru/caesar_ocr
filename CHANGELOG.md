@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.4.0 - 2026-01-25 Phase 2 Hybrid Regex System
+- Added validators, confidence handling, and debug traces for regex rules.
+- Added default plugin/validator registries and updated docs/tests.
+
 ## v0.3.1.dev0 - 2026-01-25 Phase 1 OCR Core
 - Development bump after Phase 1 completion and test coverage expansion.
 

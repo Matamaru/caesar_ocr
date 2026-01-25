@@ -19,6 +19,7 @@ def main() -> None:
         help="LayoutLM language flag (e.g. en, de). If omitted, processor default is used.",
     )
     parser.add_argument("--regex-rules", default=None, help="Path to YAML regex rules")
+    parser.add_argument("--regex-debug", action="store_true", help="Include regex debug trace in output")
     parser.add_argument("--pick", action="store_true", help="Not supported in this minimal CLI")
     args = parser.parse_args()
 
@@ -34,6 +35,7 @@ def main() -> None:
         lang=args.lang,
         layoutlm_lang=args.layoutlm_lang,
         regex_rules_path=args.regex_rules,
+        regex_debug=args.regex_debug,
     )
     data = result.to_dict()
 
