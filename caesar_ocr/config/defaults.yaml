@@ -1,0 +1,7 @@
+# Default configuration values for OCR/LayoutLM pipeline.
+ocr:
+  dpi: 300
+  psm: 6
+  lang: eng+deu
+layoutlm:
+  device: auto

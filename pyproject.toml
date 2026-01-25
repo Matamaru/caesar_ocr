@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=67", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "caesar-ocr"
+version = "0.2.0"
+description = "OCR and LayoutLM helpers for document understanding."
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "Proprietary"}
+
+authors = [
+  {name = "Heiko Matamaru"}
+]
+
+dependencies = [
+  "numpy",
+  "opencv-python",
+  "pdf2image>=1.17.0",
+  "pillow",
+  "pytesseract",
+  "pyyaml",
+  "pandas",
+  "torch",
+  "transformers",
+  "accelerate>=0.26.0",
+  "scikit-learn",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["caesar_ocr*"]
+
+[project.scripts]
+caesar-ocr = "caesar_ocr.cli:main"
+caesar-ocr-train = "caesar_ocr.cli_train_token:main"
+caesar-ocr-infer = "caesar_ocr.cli_infer:main"
+caesar-ocr-infer-token = "caesar_ocr.cli_infer_token:main"
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+  "ignore:datetime\\.datetime\\.utcfromtimestamp\\(\\) is deprecated:DeprecationWarning:pytz\\.tzinfo",
+]

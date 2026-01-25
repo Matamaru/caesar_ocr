@@ -1,0 +1,5 @@
+# YAML rules go here. Example:
+# - name: invoice_number
+#   pattern: "(?i)invoice\\s*(no|number|nr)?\\s*[:#-]?\\s*([A-Z0-9-]{3,})"
+#   group: 2
+#   output_field: "invoice_number"
