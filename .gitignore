@@ -11,6 +11,9 @@ models/
 # Data
 sample_data/
 
+# SQLite databases
+*.sqlite
+
 # Domain sample docs and generated images
 apps/domains/fehlerprotokoll/sample_docs/
 apps/domains/fehlerprotokoll/labels/images/
