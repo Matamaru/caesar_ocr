@@ -15,6 +15,9 @@ def main() -> None:
     analyze = sub.add_parser("analyze", help="Run OCR + optional LayoutLM on a document")
     analyze.add_argument("path", nargs="?", help="Path to PDF or image")
     analyze.add_argument("--output", type=Path, default=None, help="Write JSON output to file")
+    analyze.add_argument("--csv-fields", type=Path, default=None, help="Write flattened fields CSV")
+    analyze.add_argument("--csv-tokens", type=Path, default=None, help="Write token-level CSV")
+    analyze.add_argument("--csv-token-labels", type=Path, default=None, help="Write token label counts per page")
     analyze.add_argument("--layoutlm-model-dir", default=None, help="LayoutLM model directory")
     analyze.add_argument("--layoutlm-token-model-dir", default=None, help="LayoutLM token classifier model directory")
     analyze.add_argument("--lang", default="eng+deu", help="OCR language(s), e.g. eng, deu, eng+deu")
@@ -54,10 +57,28 @@ def main() -> None:
     )
     data = result.to_dict()
 
-    if args.output:
-        args.output.write_text(json.dumps(data, ensure_ascii=False, indent=2))
-    else:
-        print(json.dumps(data, ensure_ascii=False, indent=2))
+    if args.csv_fields or args.csv_tokens or args.csv_token_labels:
+        from .io.writers import flatten_fields_to_rows, token_labels_by_page_rows, tokens_to_rows, write_csv
+
+        if args.csv_fields:
+            rows = flatten_fields_to_rows(data)
+            fieldnames = sorted({k for row in rows for k in row.keys()})
+            write_csv(args.csv_fields, rows, fieldnames=fieldnames)
+        if args.csv_tokens:
+            rows = tokens_to_rows(data)
+            fieldnames = sorted({k for row in rows for k in row.keys()}) if rows else []
+            write_csv(args.csv_tokens, rows, fieldnames=fieldnames)
+        if args.csv_token_labels:
+            rows = token_labels_by_page_rows(data)
+            fieldnames = sorted({k for row in rows for k in row.keys()}) if rows else []
+            write_csv(args.csv_token_labels, rows, fieldnames=fieldnames)
+
+    if args.output or (not args.csv_fields and not args.csv_tokens and not args.csv_token_labels):
+        payload = json.dumps(data, ensure_ascii=False, indent=2)
+        if args.output:
+            args.output.write_text(payload)
+        else:
+            print(payload)
 
 
 if __name__ == "__main__":

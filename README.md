@@ -29,6 +29,24 @@ caesar-ocr analyze /path/to/file.pdf \
   --layoutlm-lang en
 ```
 
+CSV export of extracted fields:
+
+```bash
+caesar-ocr analyze /path/to/file.pdf --csv-fields fields.csv
+```
+
+Token CSV export (one row per token):
+
+```bash
+caesar-ocr analyze /path/to/file.pdf --csv-tokens tokens.csv
+```
+
+Token label counts per page:
+
+```bash
+caesar-ocr analyze /path/to/file.pdf --csv-token-labels token_labels.csv
+```
+
 Train and infer helpers:
 
 ```bash
