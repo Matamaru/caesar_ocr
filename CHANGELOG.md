@@ -1,5 +1,8 @@
 # Changelog
 
+## v0.3.1.dev0 - 2026-01-25 Phase 1 OCR Core
+- Development bump after Phase 1 completion and test coverage expansion.
+
 ## v0.3.0 - 2026-01-25 Phase 1 OCR Core
 - Completed OCR core with token+bbox output and multi-page support.
 - Wired canonical schema output and regex rules into the pipeline.
