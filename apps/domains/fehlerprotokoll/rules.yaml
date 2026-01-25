@@ -1,0 +1,6 @@
+# Domain rules for Fehlerprotokoll
+# Example (adjust as needed):
+# - name: position
+#   pattern: '(?m)^(\d+)\s+Rechnung'
+#   group: 1
+#   output_field: position

@@ -136,3 +136,14 @@ Run data quality checks on JSONL datasets (bbox bounds, label coverage, mismatch
 - `caesar_ocr/pipeline/` end-to-end analysis + schema output
 - `caesar_ocr/regex/` hybrid rule system (YAML + Python plugins)
 - `caesar_ocr/io/` loaders and output writers
+
+## Models (local, gitignored)
+
+Place domain models under `models/<domain>/` (gitignored). Example:
+
+```
+models/
+  invoices/
+    layoutlmv3-doc/
+    layoutlmv3-token/
+```
