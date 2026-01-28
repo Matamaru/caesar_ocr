@@ -51,6 +51,24 @@ Goal: provide learning-friendly example datasets and rule packs without affectin
 - Regression tests per domain pack with expected outputs.
 - Minimal CLI helpers to generate synthetic docs for user-specific tests.
 - Documentation and templates so users can add their own domain packs.
+ 
+### CV Classification and Data Extraction Roadmap
+1. Define CV Types and Layout Characteristics
+   - Identify main categories: German Lebenslauf, Europass, modern résumé, academic CV.
+   - Document layout features for each type (photo placement, section headers, columns, etc.).
+2. Develop a Classification Model
+   - Train a layout classification module to categorize CVs by type.
+3. Create a Modular Segmentation Pipeline
+   - Implement layout-aware OCR that adapts to the recognized CV type.
+   - Segment each CV into predefined blocks (personal info, work history, education, skills).
+4. Define Field Extraction Rules
+   - Specify fields to extract for each CV type and normalize them (e.g., dates, employers, skills).
+   - Add labels like Personal Information, Work Experience, Education, Skills, Certifications, and Languages for standardized tagging.
+5. Integrate into Caesar Knowledge Graph
+   - Map extracted data into the existing graph schema (Person, Organization, Education, Skill nodes).
+6. Testing and Iteration
+   - Generate synthetic CV samples for each type.
+   - Validate classification and extraction accuracy, then refine rules as needed.
 
 Proposed structure (separate from core):
 

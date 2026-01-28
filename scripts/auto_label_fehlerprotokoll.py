@@ -13,6 +13,7 @@ from typing import List, Tuple
 DATE_TOKEN_RE = re.compile(r"^\d{2}\.\d{2}\.\d{4}$")
 TIME_TOKEN_RE = re.compile(r"^\d{2}:\d{2}$")
 IK_RE = re.compile(r"^ik:?$", re.IGNORECASE)
+FOR_TOKENS = {"für", "fur", "fiir", "fir", "flir", "filr", "flr", "fllr"}
 
 
 def _norm_token(text: str) -> str:
@@ -67,6 +68,46 @@ def _is_time_token(token: str) -> bool:
 
 def _is_zip(token: str) -> bool:
     return token.isdigit() and len(token) == 5
+
+
+def _bbox_center(bbox: List[int]) -> tuple[float, float]:
+    x0, y0, x1, y1 = bbox
+    return (x0 + x1) / 2, (y0 + y1) / 2
+
+
+def _same_line(b1: List[int], b2: List[int]) -> bool:
+    _, y1 = _bbox_center(b1)
+    _, y2 = _bbox_center(b2)
+    h1 = abs(b1[3] - b1[1])
+    h2 = abs(b2[3] - b2[1])
+    tol = max(h1, h2) * 0.6
+    return abs(y1 - y2) <= tol
+
+
+def _position_indices(tokens: List[str], bboxes: List[List[int]]) -> set[int]:
+    if not bboxes or len(tokens) != len(bboxes):
+        return set()
+    indices: set[int] = set()
+    for i, tok in enumerate(tokens):
+        if not tok.startswith("rechnung"):
+            continue
+        rx0 = bboxes[i][0]
+        best_j = None
+        best_dx = None
+        for j, t in enumerate(tokens):
+            if not t.isdigit():
+                continue
+            if not _same_line(bboxes[i], bboxes[j]):
+                continue
+            if bboxes[j][2] > rx0:
+                continue
+            dx = rx0 - bboxes[j][2]
+            if best_dx is None or dx < best_dx:
+                best_dx = dx
+                best_j = j
+        if best_j is not None:
+            indices.add(best_j)
+    return indices
 
 
 def _label_record(record: dict, *, company_name: str | None) -> int:
@@ -124,11 +165,29 @@ def _label_record(record: dict, *, company_name: str | None) -> int:
                 labeled += 1
             break
 
+    bboxes = record.get("bboxes") or []
+    pos_indices = _position_indices(norm_tokens, bboxes)
+
     i = 0
     while i < len(norm_tokens):
         tok = norm_tokens[i]
+
+        # POSITION_NR: numeric token followed by "rechnung" within a small window.
+        if tok.isdigit():
+            if pos_indices:
+                if i in pos_indices:
+                    _label_span(labels, i, i + 1, "POSITION_NR")
+                    labeled += 1
+                    i += 1
+                    continue
+            for j in range(i + 1, min(i + 6, len(norm_tokens))):
+                if norm_tokens[j].startswith("rechnung"):
+                    _label_span(labels, i, i + 1, "POSITION_NR")
+                    labeled += 1
+                    break
+
         if tok.startswith("rechnung"):
-            # Position number = previous numeric token
+            # Position number = previous numeric token (fallback)
             pos_idx = i - 1
             while pos_idx >= 0 and not norm_tokens[pos_idx].isdigit():
                 pos_idx -= 1
@@ -137,7 +196,7 @@ def _label_record(record: dict, *, company_name: str | None) -> int:
                 labeled += 1
 
             # Find "für"
-            fuer_idx = _find_next(norm_tokens, i + 1, lambda t: t in ("für", "fur"))
+            fuer_idx = _find_next(norm_tokens, i + 1, lambda t: t in FOR_TOKENS)
             if fuer_idx is not None:
                 # Last name and first name
                 last_idx = _find_next(norm_tokens, fuer_idx + 1, lambda t: t)
@@ -180,7 +239,7 @@ def _label_record(record: dict, *, company_name: str | None) -> int:
                         labeled += (service_end + 1 - service_start)
 
                         # Error type starts at next "für" after service and ends at "drucken"
-                        err_start = _find_next(norm_tokens, service_end + 1, lambda t: t in ("für", "fur"))
+                        err_start = _find_next(norm_tokens, service_end + 1, lambda t: t in FOR_TOKENS)
                         if err_start is not None:
                             err_end = _find_next(norm_tokens, err_start + 1, lambda t: t.startswith("druck"))
                             if err_end is not None:

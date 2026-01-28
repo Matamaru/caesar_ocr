@@ -5,3 +5,4 @@ ocr:
   lang: eng+deu
 layoutlm:
   device: auto
+  token_model_dir: models/fehlerptokoll/fehlerprotokoll

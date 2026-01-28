@@ -1,0 +1,5 @@
+# Passport/ID MRZ rules (TD1/TD2/TD3)
+- name: mrz_lines
+  pattern: '(?m)^[A-Z0-9<]{30,44}$'
+  group: 0
+  output_field: mrz_lines

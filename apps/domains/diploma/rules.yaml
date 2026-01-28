@@ -1,0 +1,17 @@
+# Diploma/degree rules
+- name: person_name
+  pattern: '(?i)(name|inhaber|inhaberin|holder|graduate)[:\s]+([A-ZÄÖÜ][^\n,;]{2,70})'
+  group: 2
+  output_field: holder_name
+- name: degree_type
+  pattern: '(?i)(Urkunde|Diplom|Bachelor|Master|Magister|Staatsexamen|Doctor|Doktor|PhD)'
+  group: 1
+  output_field: degree_type
+- name: dates
+  pattern: '(?:(?:19|20)\d{2}[-./](?:0?[1-9]|1[0-2])[-./](?:0?[1-9]|[12]\d|3[01]))|(?:(?:0?[1-9]|[12]\d|3[01])[-./](?:0?[1-9]|1[0-2])[-./](?:19|20)\d{2})'
+  group: 0
+  output_field: dates
+- name: certified_copy
+  pattern: '(?i)(certified copy|beglaubigte kopie|beglaubigung|copy)'
+  group: 1
+  output_field: certified_copy_hint

@@ -107,8 +107,6 @@ def analyze_document_bytes(
     doc_hints = infer_present_docs(ocr_result.ocr_text)
     if doc_hints:
         ocr_result.fields.setdefault("doc_hints", sorted(doc_hints))
-        if ocr_result.doc_type in (None, "", "unknown"):
-            ocr_result.doc_type = sorted(doc_hints)[0]
     layout = None
     layoutlm_tokens = None
     token_labels_by_page: dict[int, List[str]] = {}

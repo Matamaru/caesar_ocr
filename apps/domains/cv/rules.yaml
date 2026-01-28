@@ -1,0 +1,47 @@
+# CV extraction rules (starter)
+# Note: regexes are intentionally simple; extend as needed.
+
+- name: email
+  pattern: '(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b'
+  output_field: email
+
+- name: phone
+  pattern: '(\+?\d[\d\s\-().]{7,}\d)'
+  output_field: phone
+
+- name: linkedin
+  pattern: '(?i)\b(?:https?://)?(?:www\.)?linkedin\.com/[^\s]+'
+  output_field: linkedin
+
+- name: github
+  pattern: '(?i)\b(?:https?://)?(?:www\.)?github\.com/[^\s]+'
+  output_field: github
+
+- name: website
+  pattern: '(?i)\b(?:https?://)?[A-Z0-9.-]+\.[A-Z]{2,}(?:/[^\s]*)?'
+  output_field: website
+
+- name: birthdate
+  pattern: '(\b\d{2}\.\d{2}\.\d{4}\b|\b\d{4}-\d{2}-\d{2}\b)'
+  output_field: birthdate
+
+- name: zipcode_city
+  pattern: '(\b\d{5}\b)\s+([A-Za-zÄÖÜäöüß-]+)'
+  group: 0
+  output_field: zipcode_city
+
+- name: section_work_experience
+  pattern: '(?i)\b(Berufserfahrung|Work Experience|Professional Experience|Experience)\b'
+  output_field: section_work_experience
+
+- name: section_education
+  pattern: '(?i)\b(Ausbildung|Studium|Education)\b'
+  output_field: section_education
+
+- name: section_skills
+  pattern: '(?i)\b(Skills|Fähigkeiten|Kompetenzen)\b'
+  output_field: section_skills
+
+- name: section_languages
+  pattern: '(?i)\b(Sprachen|Languages)\b'
+  output_field: section_languages

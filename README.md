@@ -47,6 +47,9 @@ Token label counts per page:
 caesar-ocr analyze /path/to/file.pdf --csv-token-labels token_labels.csv
 ```
 
+Document type hints (keyword-based) are added automatically as `doc_hints`
+in the JSON output.
+
 Train and infer helpers:
 
 ```bash
@@ -118,7 +121,20 @@ When `--regex-debug` is enabled, output includes `__debug__` entries per rule.
 ## Scripts (root `scripts/`)
 
 ### `scripts/build_jsonl.py`
-Build JSONL datasets from images using OCR tokens (train/eval split included).
+Build JSONL datasets from images or PDFs using OCR tokens (train/eval split included).
+Supports PDF page extraction, progress bar, and file filtering.
+
+Example:
+```bash
+python scripts/build_jsonl.py \
+  --input-dir apps/domains/fehlerprotokoll/sample_docs \
+  --output-dir apps/domains/fehlerprotokoll/labels \
+  --lang deu \
+  --write-tasks --tasks-format jsonl \
+  --eval-ratio 0.1 \
+  --batch-size 3 \
+  --progress-bar
+```
 
 ### `scripts/render_pngs.py`
 Render PDF pages to PNGs for dataset preparation.
@@ -128,6 +144,16 @@ Split a JSONL dataset into train/val.
 
 ### `scripts/check_dataset_quality.py`
 Run data quality checks on JSONL datasets (bbox bounds, label coverage, mismatches).
+
+## Domain packs (apps/)
+
+Domain packs live under `apps/domains/` and are separate from the core OCR/LayoutLM code.
+
+Included packs:
+- `apps/domains/fehlerprotokoll/` (error reports, generator + regex + training data)
+- `apps/domains/cv/` (CV types + generator + rules)
+- `apps/domains/passport/` (MRZ rules + parser)
+- `apps/domains/diploma/` (degree rules + extractor)
 
 ## Package layout
 
@@ -147,3 +173,8 @@ models/
     layoutlmv3-doc/
     layoutlmv3-token/
 ```
+
+## Auto-label helpers
+
+- `scripts/auto_label_fehlerprotokoll.py` (Fehlerprotokoll bootstrap labels)
+- `scripts/auto_label_cv.py` (CV bootstrap labels)
