@@ -1,5 +1,9 @@
 # caesar_ocr
 
+![Python](https://img.shields.io/badge/python-3.x-blue)
+![Status](https://img.shields.io/badge/status-alpha-orange)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 OCR + LayoutLMv3 package for document understanding. Includes a CLI, Python APIs,
 JSONL dataset tooling, and a hybrid regex system (YAML rules + Python plugins).
 
@@ -173,6 +177,10 @@ models/
     layoutlmv3-doc/
     layoutlmv3-token/
 ```
+
+## License
+
+MIT License. See `LICENSE`.
 
 ## Auto-label helpers
 
