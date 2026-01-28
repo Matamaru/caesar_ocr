@@ -3,14 +3,34 @@
   pattern: '(?i)(name|inhaber|inhaberin|holder|graduate)[:\s]+([A-ZÄÖÜ][^\n,;]{2,70})'
   group: 2
   output_field: holder_name
+- name: institution_name
+  pattern: '(?i)(hochschule|universit[aä]t|university|college|fachhochschule|schule|institute)[^\n]{0,60}'
+  group: 0
+  output_field: institution_name
 - name: degree_type
   pattern: '(?i)(Urkunde|Diplom|Bachelor|Master|Magister|Staatsexamen|Doctor|Doktor|PhD)'
   group: 1
   output_field: degree_type
+- name: program_or_field
+  pattern: '(?i)(studiengang|fachrichtung|program|programme|field of study|course of study)[:\s]+([A-ZÄÖÜ][^\n,;]{2,80})'
+  group: 2
+  output_field: program_or_field
+- name: graduation_status
+  pattern: '(?i)(bestanden|erfolgreich abgeschlossen|graduated|awarded|conferred)'
+  group: 1
+  output_field: graduation_status
 - name: dates
   pattern: '(?:(?:19|20)\d{2}[-./](?:0?[1-9]|1[0-2])[-./](?:0?[1-9]|[12]\d|3[01]))|(?:(?:0?[1-9]|[12]\d|3[01])[-./](?:0?[1-9]|1[0-2])[-./](?:19|20)\d{2})'
   group: 0
   output_field: dates
+- name: location
+  pattern: '(?i)(ort|location|issued in)[:\s]+([A-ZÄÖÜ][^\n,;]{2,60})'
+  group: 2
+  output_field: location
+- name: diploma_number
+  pattern: '(?i)(urkunden?-?nr\.?|diploma\s*no\.?|certificate\s*no\.?)[:\s#-]*([A-Z0-9-]{4,})'
+  group: 2
+  output_field: diploma_number
 - name: certified_copy
   pattern: '(?i)(certified copy|beglaubigte kopie|beglaubigung|copy)'
   group: 1
