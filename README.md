@@ -68,6 +68,12 @@ caesar-ocr-infer-token --model-dir models/layoutlmv3-token --input sample.jsonl 
 from pathlib import Path
 
 from caesar_ocr import analyze_bytes, analyze_bytes_layoutlm, analyze_document_bytes
+from caesar_ocr.domain_samples import (
+    generate_cv_samples,
+    generate_diploma_samples,
+    generate_fehlerprotokoll_samples,
+    generate_passport_samples,
+)
 
 payload = Path("document.pdf").read_bytes()
 result = analyze_bytes(payload, lang="eng+deu")
@@ -89,6 +95,12 @@ tool_result = analyze_document_bytes(
     regex_debug=True,
 )
 print(tool_result.to_dict())
+
+# Generate sample domain PDFs
+generate_passport_samples("samples/passports", count=10)
+generate_diploma_samples("samples/diplomas", count=10, lang="both")
+generate_cv_samples("samples/cv", count=10, all_types=True)
+generate_fehlerprotokoll_samples("samples/fehlerprotokoll", report_date="2025-11-30")
 ```
 
 ## Hybrid regex rules

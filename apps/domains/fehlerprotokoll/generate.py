@@ -361,14 +361,13 @@ def _parse_report_date(value: str | None) -> date:
     return datetime.strptime(value, "%Y-%m-%d").date()
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate Fehlerprotokoll PDFs from DB data")
-    parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--report-date", default=None, help="Report date (YYYY-MM-DD)")
-    parser.add_argument("--seed", type=int, default=None)
-    args = parser.parse_args()
-
-    report_date = _parse_report_date(args.report_date)
+def generate_fehlerprotokoll_reports(
+    output_dir: Path,
+    *,
+    report_date: date | None = None,
+    seed: int | None = None,
+) -> Path:
+    report_date = report_date or date.today()
 
     with _connect(DB_PATH) as conn:
         company = _load_company(conn)
@@ -382,13 +381,13 @@ def main() -> None:
             customer_services,
             period_year=report_date.year,
             period_month=report_date.month,
-            seed=args.seed,
+            seed=seed,
         )
 
     positions = _build_positions(customers, services, customer_services, unsigned_by_period)
 
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = args.output_dir / f"Fehlerprotokoll_Rechnung_{report_date.year}_{report_date.month:02d}.pdf"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"Fehlerprotokoll_Rechnung_{report_date.year}_{report_date.month:02d}.pdf"
     generate_fehlerprotokoll_rechnung_pdf(
         output_path,
         report_date=datetime.combine(report_date, datetime.now().time()),
@@ -396,6 +395,18 @@ def main() -> None:
         positions=positions,
     )
     print(f"Wrote {output_path}")
+    return output_path
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate Fehlerprotokoll PDFs from DB data")
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--report-date", default=None, help="Report date (YYYY-MM-DD)")
+    parser.add_argument("--seed", type=int, default=None)
+    args = parser.parse_args()
+
+    report_date = _parse_report_date(args.report_date)
+    generate_fehlerprotokoll_reports(args.output_dir, report_date=report_date, seed=args.seed)
 
 
 if __name__ == "__main__":

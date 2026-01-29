@@ -127,17 +127,11 @@ def _write_passport_pdf(path: Path, name: str, nationality: str, mrz1: str, mrz2
     c.save()
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate synthetic passport PDFs")
-    parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--count", type=int, default=5)
-    parser.add_argument("--seed", type=int, default=7)
-    args = parser.parse_args()
+def generate_passports(output_dir: Path, *, count: int = 5, seed: int = 7) -> None:
+    random.seed(seed)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    random.seed(args.seed)
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-
-    for i in range(1, args.count + 1):
+    for i in range(1, count + 1):
         pool_name = random.choice(list(NAME_POOLS.keys()))
         pool = NAME_POOLS[pool_name]
         first = random.choice(pool["first"])
@@ -163,9 +157,19 @@ def main() -> None:
             raise ValueError("Generated MRZ failed final check digit")
         name = f"{first} {last}"
 
-        path = args.output_dir / f"passport_{i:03d}.pdf"
+        path = output_dir / f"passport_{i:03d}.pdf"
         _write_passport_pdf(path, name, nationality, mrz1, mrz2)
         print(f"Wrote {path}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate synthetic passport PDFs")
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--count", type=int, default=5)
+    parser.add_argument("--seed", type=int, default=7)
+    args = parser.parse_args()
+
+    generate_passports(args.output_dir, count=args.count, seed=args.seed)
 
 
 if __name__ == "__main__":

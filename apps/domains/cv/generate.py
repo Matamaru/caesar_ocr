@@ -675,6 +675,30 @@ def _write_pdf(text: str, path: Path, *, cv_type: str) -> None:
     c.save()
 
 
+def generate_cvs(
+    output_dir: Path,
+    *,
+    count: int = 5,
+    cv_type: str = "lebenslauf",
+    all_types: bool = False,
+    seed: int = 7,
+) -> None:
+    random.seed(seed)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    types = ["lebenslauf", "europass", "modern", "academic"] if all_types else [cv_type]
+    counter = 1
+    for chosen_type in types:
+        for _ in range(count):
+            first = random.choice(FIRST_NAMES)
+            last = random.choice(LAST_NAMES)
+            text = _cv_text(first, last, chosen_type)
+            path = output_dir / f"cv_{chosen_type}_{counter:03d}.pdf"
+            _write_pdf(text, path, cv_type=chosen_type)
+            print(f"Wrote {path}")
+            counter += 1
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate synthetic CV samples")
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -693,20 +717,13 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=7)
     args = parser.parse_args()
 
-    random.seed(args.seed)
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-
-    types = ["lebenslauf", "europass", "modern", "academic"] if args.all else [args.type]
-    counter = 1
-    for cv_type in types:
-        for _ in range(args.count):
-            first = random.choice(FIRST_NAMES)
-            last = random.choice(LAST_NAMES)
-            text = _cv_text(first, last, cv_type)
-            path = args.output_dir / f"cv_{cv_type}_{counter:03d}.pdf"
-            _write_pdf(text, path, cv_type=cv_type)
-            print(f"Wrote {path}")
-            counter += 1
+    generate_cvs(
+        args.output_dir,
+        count=args.count,
+        cv_type=args.type,
+        all_types=args.all,
+        seed=args.seed,
+    )
 
 
 if __name__ == "__main__":

@@ -348,38 +348,29 @@ def _draw_text_layout(
     c.drawString(right_x, y - 32, f"{date_label}: {issue_date}")
     c.drawString(right_x, y - 48, f"{num_label}: {diploma_number}")
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate synthetic diploma PDFs.")
-    parser.add_argument("--output-dir", type=Path, required=True)
-    parser.add_argument("--count", type=int, default=20)
-    parser.add_argument("--seed", type=int, default=7)
-    parser.add_argument("--lang", choices=["de", "en", "both"], default="de")
-    parser.add_argument("--certified-copy-rate", type=float, default=0.2)
-    parser.add_argument(
-        "--layout",
-        choices=["classic", "minimal", "modern", "dark", "playful", "qr", "random"],
-        default="random",
-    )
-    parser.add_argument(
-        "--text-layout",
-        choices=["classic_center", "modern_side", "split_columns", "random"],
-        default="random",
-    )
-    parser.add_argument("--stamp-rate", type=float, default=0.6)
-    args = parser.parse_args()
+def generate_diplomas(
+    output_dir: Path,
+    *,
+    count: int = 20,
+    seed: int = 7,
+    lang: str = "de",
+    certified_copy_rate: float = 0.2,
+    layout: str = "random",
+    text_layout: str = "random",
+    stamp_rate: float = 0.6,
+) -> None:
+    random.seed(seed)
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    random.seed(args.seed)
-    args.output_dir.mkdir(parents=True, exist_ok=True)
-
-    for i in range(1, args.count + 1):
-        if args.lang == "both":
-            lang = "de" if i % 2 == 0 else "en"
+    for i in range(1, count + 1):
+        if lang == "both":
+            lang_choice = "de" if i % 2 == 0 else "en"
         else:
-            lang = args.lang
+            lang_choice = lang
 
         name_pool = random.choice(list(NAME_POOLS.values()))
         holder = f"{random.choice(name_pool['first'])} {random.choice(name_pool['last'])}"
-        if lang == "de":
+        if lang_choice == "de":
             institution = random.choice(INSTITUTIONS_DE)
             program = random.choice(PROGRAMS_DE)
             degree = random.choice(DEGREE_TYPES_DE)
@@ -404,9 +395,9 @@ def main() -> None:
 
         issue_date = _rand_date(2015, 2025)
         diploma_number = _diploma_number()
-        certified_copy = random.random() < args.certified_copy_rate
+        certified_copy = random.random() < certified_copy_rate
         stamp_label = None
-        if random.random() < args.stamp_rate:
+        if random.random() < stamp_rate:
             stamp_label = random.choice(
                 [
                     "Bayern",
@@ -419,18 +410,18 @@ def main() -> None:
                     "Niedersachsen",
                 ]
             )
-        layout = args.layout if args.layout != "random" else random.choice(
+        layout_choice = layout if layout != "random" else random.choice(
             ["classic", "minimal", "modern", "dark", "playful", "qr"]
         )
-        text_layout = args.text_layout if args.text_layout != "random" else random.choice(
+        text_layout_choice = text_layout if text_layout != "random" else random.choice(
             ["classic_center", "modern_side", "split_columns"]
         )
         signature_name = f"{random.choice(name_pool['first'])} {random.choice(name_pool['last'])}"
 
-        path = args.output_dir / f"diploma_{i:03d}_{lang}.pdf"
+        path = output_dir / f"diploma_{i:03d}_{lang_choice}.pdf"
         _write_pdf(
             path,
-            lang=lang,
+            lang=lang_choice,
             holder=holder,
             institution=institution,
             degree=degree,
@@ -439,12 +430,44 @@ def main() -> None:
             issue_date=issue_date,
             diploma_number=diploma_number,
             certified_copy=certified_copy,
-            layout=layout,
-            text_layout=text_layout,
+            layout=layout_choice,
+            text_layout=text_layout_choice,
             stamp_label=stamp_label,
             signature_name=signature_name,
         )
         print(f"Wrote {path}")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate synthetic diploma PDFs.")
+    parser.add_argument("--output-dir", type=Path, required=True)
+    parser.add_argument("--count", type=int, default=20)
+    parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--lang", choices=["de", "en", "both"], default="de")
+    parser.add_argument("--certified-copy-rate", type=float, default=0.2)
+    parser.add_argument(
+        "--layout",
+        choices=["classic", "minimal", "modern", "dark", "playful", "qr", "random"],
+        default="random",
+    )
+    parser.add_argument(
+        "--text-layout",
+        choices=["classic_center", "modern_side", "split_columns", "random"],
+        default="random",
+    )
+    parser.add_argument("--stamp-rate", type=float, default=0.6)
+    args = parser.parse_args()
+
+    generate_diplomas(
+        args.output_dir,
+        count=args.count,
+        seed=args.seed,
+        lang=args.lang,
+        certified_copy_rate=args.certified_copy_rate,
+        layout=args.layout,
+        text_layout=args.text_layout,
+        stamp_rate=args.stamp_rate,
+    )
 
 
 if __name__ == "__main__":
