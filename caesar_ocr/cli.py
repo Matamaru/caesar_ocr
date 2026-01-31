@@ -28,6 +28,11 @@ def main() -> None:
     )
     analyze.add_argument("--regex-rules", default=None, help="Path to YAML regex rules")
     analyze.add_argument("--regex-debug", action="store_true", help="Include regex debug trace in output")
+    analyze.add_argument(
+        "--schema",
+        action="store_true",
+        help="Return full schema output (tokens + scores). Defaults to simple output.",
+    )
     analyze.add_argument("--pick", action="store_true", help="Not supported in this minimal CLI")
 
     # Backward-compatible: allow `caesar-ocr /path/to/file.pdf`
@@ -55,7 +60,13 @@ def main() -> None:
         regex_debug=args.regex_debug,
         layoutlm_token_model_dir=args.layoutlm_token_model_dir,
     )
-    data = result.to_dict()
+    if args.csv_fields or args.csv_tokens or args.csv_token_labels:
+        args.schema = True
+
+    if args.schema and result.schema is not None:
+        data = result.schema.to_dict()
+    else:
+        data = {"doc_type": result.ocr.doc_type, "fields": result.ocr.fields, "ocr_text": result.ocr.ocr_text}
 
     if args.csv_fields or args.csv_tokens or args.csv_token_labels:
         from .io.writers import flatten_fields_to_rows, token_labels_by_page_rows, tokens_to_rows, write_csv

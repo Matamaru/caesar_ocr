@@ -11,7 +11,7 @@ This module provides a single entry point, `analyze_bytes`, which:
 import io
 import re
 from dataclasses import dataclass
-from typing import Any, Dict, List, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 
 from PIL import Image
 
@@ -62,9 +62,53 @@ def detect_mrz_lines_from_text(ocr_text: str) -> List[str]:
         return []
     mrz_lines = []
     for line in ocr_text.splitlines():
-        if line.count("<") >= 3:
-            mrz_lines.append(line)
+        if "<" not in line:
+            continue
+        cleaned = re.sub(r"[^A-Z0-9<]+", "", line.upper())
+        if "P<" in cleaned:
+            start = cleaned.find("P<")
+            if len(cleaned) >= start + 44:
+                mrz_lines.append(cleaned[start : start + 44])
+                # If we can grab a second line immediately after, do so.
+                if len(cleaned) >= start + 88:
+                    mrz_lines.append(cleaned[start + 44 : start + 88])
+                else:
+                    # Try to find a valid MRZ line 2 anywhere in the cleaned text.
+                    line2 = _find_mrz_line2(cleaned)
+                    if line2:
+                        mrz_lines.append(line2)
+        if mrz_lines:
+            return mrz_lines
+    if mrz_lines:
+        return mrz_lines
+    # Fallback: extract MRZ-like chunks from single-line OCR text.
+    cleaned = re.sub(r"[^A-Z0-9<]+", "", ocr_text.upper())
+    if "P<" in cleaned:
+        start = cleaned.find("P<")
+        if len(cleaned) >= start + 44:
+            mrz_lines.append(cleaned[start : start + 44])
+            if len(cleaned) >= start + 88:
+                mrz_lines.append(cleaned[start + 44 : start + 88])
+            else:
+                line2 = _find_mrz_line2(cleaned)
+                if line2:
+                    mrz_lines.append(line2)
+    if not mrz_lines:
+        line2 = _find_mrz_line2(cleaned)
+        if line2:
+            mrz_lines.append(line2)
     return mrz_lines
+
+
+def _find_mrz_line2(text: str) -> str | None:
+    """Find a TD3 MRZ line 2 candidate inside text."""
+    pattern = re.compile(
+        r"[A-Z0-9<]{9}[0-9][A-Z]{3}[0-9]{6}[0-9][MF<][0-9]{6}[0-9][A-Z0-9<]{14}[0-9][0-9]"
+    )
+    match = pattern.search(text)
+    if match:
+        return match.group(0)
+    return None
 
 
 #=== Doc classifiers (very light heuristics) =============================
@@ -87,10 +131,12 @@ FINANCIAL_REPORT_HINTS = {
 
 #=== Document classification =============================================
 
-def classify_doc(predictions: List[str]) -> str:
+def classify_doc(predictions: List[str], *, ocr_text: str | None = None) -> str:
     """Classify document type using simple keyword heuristics."""
     # MRZ implies a passport-like document.
-    mrz_lines = detect_mrz_lines(predictions)
+    mrz_lines = detect_mrz_lines_from_text(ocr_text or "") if ocr_text else []
+    if not mrz_lines:
+        mrz_lines = detect_mrz_lines(predictions)
     if len(mrz_lines) > 0:
         return "Passport"
     if any(h in predictions for h in PASSPORT_HINTS):
@@ -117,7 +163,7 @@ def _extract_passport_data_from_mrz(mrz_lines: List[str]) -> Dict[str, Any]:
     # TD3 layout:
     # L1: P<CCNAME<<GIVEN<<<<<<<<<<<<<<<<<<<<<<<<
     # L2: PASSPORTNO<CHECK>CCYYMMDD<CHECK>SEX EXP<CHK>NatID<CHK> <<optional
-    if len(mrz_lines) == 2:
+    if len(mrz_lines) >= 2:
         # Clean lines and uppercase
         l1 = mrz_lines[0].replace(" ", "").upper()
         l2 = mrz_lines[1].replace(" ", "").upper()
@@ -164,6 +210,50 @@ def extract_passport_fields(predictions: List[str], *, ocr_text: str | None = No
 PERSON_NAME_RE = re.compile(r"(name|inhaber|inhaberin|holder|graduate)[:\s]+([A-ZÄÖÜ][^\n,;]{2,70})", re.I)
 # Degree type pattern
 DEGREE_RE = re.compile(r"(Urkunde|Diplom|Bachelor|Master|Magister|Staatsexamen|Doctor|Doktor|PhD)", re.I)
+DEGREE_LINE_RE = re.compile(r"\b(Diploma|Bachelor|Master|Doctor|PhD)\s+Degree\b", re.I)
+DEGREE_OF_RE = re.compile(r"\b(Bachelor|Master|Doctor|PhD)\s+of\b", re.I)
+PROGRAM_RE = re.compile(r"\b(Program|Studiengang)\s*[:\-]\s*(.+)", re.I)
+INSTITUTION_RE = re.compile(r"\b(University|Hochschule)\s*[:\-]\s*(.+)", re.I)
+INSTITUTION_OF_RE = re.compile(r"\b((?:University of|Universitaet|Universität|Hochschule)\s+.+)", re.I)
+INSTITUTION_LABEL_RE = re.compile(r"\b(Hochschule|Universitaet|Universität|University)\s*[:\-]\s*(.+)", re.I)
+LOCATION_RE = re.compile(r"\b(Location|Ort)\s*[:\-]\s*(.+)", re.I)
+DATE_LABEL_RE = re.compile(r"\b(Date|Datum)\s*[:\-]\s*(\d{2}\.\d{2}\.\d{4})", re.I)
+DIPLOMA_NO_RE = re.compile(r"\b(Diploma No\.|Urkunden-Nr\.)\s*[:#\-]?\s*([A-Z0-9\-]+)", re.I)
+AWARDED_RE = re.compile(r"\b(awarded to|verliehen an)\s+(.+)", re.I)
+
+
+def _capture_until_label(
+    text: str,
+    pattern: re.Pattern,
+    *,
+    stop_labels: List[str],
+    group_index: int = 2,
+) -> Optional[str]:
+    match = pattern.search(text)
+    if not match:
+        return None
+    value = match.group(group_index).strip()
+    if not value:
+        return None
+    stop_re = re.compile(r"\b(" + "|".join(stop_labels) + r")\b", re.I)
+    stop_match = stop_re.search(value)
+    if stop_match:
+        value = value[: stop_match.start()].strip(" -|")
+    value = value.split("|", 1)[0].strip(" -|")
+    return value.strip(" -|") or None
+
+
+def _split_trailing_name(value: str) -> tuple[str, Optional[str]]:
+    match = re.match(r"(.+?)\s+([A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+\\s+[A-ZÄÖÜ][A-Za-zÄÖÜäöüß\\-]+)$", value)
+    if not match:
+        # Fallback: split last two capitalized words.
+        parts = value.split()
+        if len(parts) >= 4:
+            last_two = parts[-2:]
+            if all(p[:1].isalpha() and p[:1].upper() == p[:1] for p in last_two):
+                return " ".join(parts[:-2]).strip(), " ".join(last_two).strip()
+        return value, None
+    return match.group(1).strip(), match.group(2).strip()
 
 # Financial report field extraction
 INVOICE_NO_RE = re.compile(
@@ -213,23 +303,93 @@ def extract_financial_report_fields(ocr_text: str) -> Dict[str, Any]:
 def extract_diploma_fields(ocr_text: str) -> Dict[str, Any]:
     """Extract diploma-like fields from OCR text."""
     out: Dict[str, Any] = {}
-    # Institution names are frequently in the first line.
-    lines = ocr_text.splitlines()
-    if lines:
-        out["institution_guess"] = lines[0].strip()
-    # Holder name and degree type are scanned with simple regexes.
-    m = PERSON_NAME_RE.search(ocr_text)
+    text = " ".join(ocr_text.split())
+    stop_labels = [
+        "Program",
+        "Studiengang",
+        "Status",
+        "Location",
+        "Ort",
+        "Date",
+        "Datum",
+        "Diploma No.",
+        "Urkunden-Nr.",
+        "Signature",
+    ]
+    stop_labels_institution = [label for label in stop_labels if label not in ("University", "Hochschule")]
+    stop_labels_program = stop_labels + ["University", "Hochschule"]
+
+    holder = _capture_until_label(text, AWARDED_RE, stop_labels=stop_labels)
+    if holder:
+        out["holder_name_guess"] = holder
+    else:
+        m = PERSON_NAME_RE.search(text)
+        if m:
+            out["holder_name_guess"] = m.group(2).strip()
+
+    program = _capture_until_label(text, PROGRAM_RE, stop_labels=stop_labels_program)
+    if program:
+        out["program_guess"] = program
+
+    institution = _capture_until_label(text, INSTITUTION_RE, stop_labels=stop_labels_institution)
+    if institution:
+        institution, trailing_name = _split_trailing_name(institution)
+        out["institution_guess"] = institution
+        if trailing_name and "holder_name_guess" not in out:
+            out["holder_name_guess"] = trailing_name
+    else:
+        institution = _capture_until_label(text, INSTITUTION_LABEL_RE, stop_labels=stop_labels_institution)
+        if institution:
+            institution, trailing_name = _split_trailing_name(institution)
+            out["institution_guess"] = institution
+            if trailing_name and "holder_name_guess" not in out:
+                out["holder_name_guess"] = trailing_name
+        else:
+            institution = _capture_until_label(
+                text,
+                INSTITUTION_OF_RE,
+                stop_labels=stop_labels_institution,
+                group_index=1,
+            )
+            if institution:
+                institution, trailing_name = _split_trailing_name(institution)
+                out["institution_guess"] = institution
+                if trailing_name and "holder_name_guess" not in out:
+                    out["holder_name_guess"] = trailing_name
+
+    location = _capture_until_label(text, LOCATION_RE, stop_labels=stop_labels)
+    if location:
+        out["location_guess"] = location
+
+    m = DATE_LABEL_RE.search(text)
     if m:
-        out["holder_name_guess"] = m.group(2).strip()
-    m = DEGREE_RE.search(ocr_text)
+        out["issue_date_guess"] = m.group(2).strip()
+
+    m = DIPLOMA_NO_RE.search(text)
     if m:
-        out["degree_type_guess"] = m.group(1).strip()
-    # Dates help identify issuance period.
-    dates = DATE_RE.findall(ocr_text)
+        out["diploma_number_guess"] = m.group(2).strip()
+
+    m = DEGREE_LINE_RE.findall(text)
+    if m:
+        out["degree_type_guess"] = m[-1].strip()
+    else:
+        m = DEGREE_OF_RE.findall(text)
+        if m:
+            out["degree_type_guess"] = m[-1].strip()
+        else:
+            m = DEGREE_RE.findall(text)
+            if m:
+                out["degree_type_guess"] = m[-1].strip()
+    if out.get("degree_type_guess") == "Urkunde" and "Diplom" in text:
+        out["degree_type_guess"] = "Diplom"
+
+    # Dates help identify issuance period (fallback for debugging).
+    dates = DATE_RE.findall(text)
     if dates:
         out["dates_detected"] = dates
+
     # Certified copy hint is used as a lightweight flag.
-    if re.search(r"(certified copy|beglaubigte kopie|beglaubigung|copy)", ocr_text, re.I):
+    if re.search(r"(certified copy|beglaubigte kopie|beglaubigung|copy)", text, re.I):
         out["is_certified_copy_hint"] = True
 
     return out
@@ -275,7 +435,7 @@ def analyze_pages(pages: Sequence, *, lang: str = "eng+deu") -> OcrResult:
     ocr_text = "\n".join(all_text)
     tokens = all_tokens
 
-    doc_type = classify_doc(predictions)
+    doc_type = classify_doc(predictions, ocr_text=ocr_text)
     fields: Dict[str, Any] = {}
 
     if doc_type == "Passport":

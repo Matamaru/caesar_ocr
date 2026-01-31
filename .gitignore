@@ -16,7 +16,11 @@ sample_data/
 
 # Domain sample docs and generated images
 apps/domains/*/sample_docs/
+apps/domains/*/sample_docs_eval/
 apps/domains/*/labels/
 apps/domains/*/labels/images/
 .env
 .env
+AWS.txt
+eval_manifest*.jsonl
+eval_results*.jsonl

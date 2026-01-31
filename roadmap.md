@@ -113,3 +113,12 @@ scripts/
 - Performance profiling and caching.
 - Logging, tracing, and error reporting.
 - Packaging and versioning.
+
+## Phase 8 — LayoutLM Evaluation & Improvement (Planned)
+- Add API/CLI switch to return full schema (token labels + scores) for inspection.
+- Build a small evaluation set (10–30 real docs per class) with ground-truth fields.
+- Add a batch evaluation script to compare outputs and compute precision/recall/F1 per field.
+- Add token-label evaluation (sequence labeling) with per-label precision/recall/F1.
+- Create an error analysis checklist: OCR errors, token/box alignment, label confusion.
+- Improve OCR preprocessing and token normalization for MRZ/structured zones.
+- Iterate on labeling guidelines and expand training data for weak classes.

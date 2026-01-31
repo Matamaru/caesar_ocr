@@ -27,6 +27,15 @@ def test_classify_doc_mrz_overrides():
     assert ocr.classify_doc(predictions) == "Passport"
 
 
+def test_classify_doc_mrz_from_text():
+    predictions = ["passport", "name"]
+    ocr_text = (
+        "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\n"
+        "L898902C36UTO7408122F1204159ZE184226B<<<<<10\n"
+    )
+    assert ocr.classify_doc(predictions, ocr_text=ocr_text) == "Passport"
+
+
 def test_classify_doc_hints():
     assert ocr.classify_doc(["diploma"]) == "Degree Certificate"
     assert ocr.classify_doc(["invoice"]) == "Financial Report"
@@ -60,6 +69,17 @@ def test_extract_passport_fields_from_ocr_text_lines():
     assert fields.get("passport_number") == "L898902C3"
 
 
+def test_extract_passport_fields_from_single_line_ocr_text():
+    predictions = ["passport"]
+    ocr_text = (
+        "Passport Name: Anna Example "
+        "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<< "
+        "L898902C36UTO7408122F1204159ZE184226B<<<<<10"
+    )
+    fields = ocr.extract_passport_fields(predictions, ocr_text=ocr_text)
+    assert fields.get("passport_number") == "L898902C3"
+
+
 def test_extract_financial_report_fields():
     text = (
         "Invoice No: ABC-123\n"
@@ -87,6 +107,49 @@ def test_extract_diploma_fields():
     assert fields.get("holder_name_guess") == "John Doe"
     assert fields.get("degree_type_guess") == "Bachelor"
     assert fields.get("is_certified_copy_hint") is True
+
+
+def test_extract_diploma_fields_labeled_line():
+    text = (
+        "Diploma PhD Degree awarded to Arjun Singh "
+        "Program: Nursing Science University: University of Lagos "
+        "Status: graduated Location: Lagos | Date: 02.10.2020 "
+        "Diploma No.: DIP-9313-4517 Certified Copy"
+    )
+    fields = ocr.extract_diploma_fields(text)
+    assert fields.get("holder_name_guess") == "Arjun Singh"
+    assert fields.get("program_guess") == "Nursing Science"
+    assert fields.get("institution_guess") == "University of Lagos"
+    assert fields.get("location_guess") == "Lagos"
+    assert fields.get("issue_date_guess") == "02.10.2020"
+    assert fields.get("diploma_number_guess") == "DIP-9313-4517"
+    assert fields.get("degree_type_guess") == "PhD"
+    assert fields.get("is_certified_copy_hint") is True
+
+
+def test_extract_diploma_fields_unlabeled():
+    text = (
+        "Urkunde Bachelor of Science\n"
+        "University of Berlin\n"
+        "Name: Clara Schmidt\n"
+        "Date 14.06.2021"
+    )
+    fields = ocr.extract_diploma_fields(text)
+    assert fields.get("degree_type_guess") == "Bachelor"
+    assert fields.get("institution_guess") == "University of Berlin"
+    assert fields.get("holder_name_guess") == "Clara Schmidt"
+
+
+def test_extract_diploma_fields_german_line_with_name():
+    text = (
+        "Urkunde Diplom Hochschule: Hochschule Muenchen Sophie Schmidt "
+        "Studiengang: Physiotherapie Ort: Wiesbaden Datum: 02.07.2024 "
+        "Urkunden-Nr.: DIP-4622-1763"
+    )
+    fields = ocr.extract_diploma_fields(text)
+    assert fields.get("institution_guess") == "Hochschule Muenchen"
+    assert fields.get("holder_name_guess") == "Sophie Schmidt"
+    assert fields.get("degree_type_guess") == "Diplom"
 
 
 def test_analyze_bytes_pdf(monkeypatch):

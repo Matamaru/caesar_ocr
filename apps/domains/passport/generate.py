@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import random
 from pathlib import Path
 from datetime import date
@@ -127,9 +128,16 @@ def _write_passport_pdf(path: Path, name: str, nationality: str, mrz1: str, mrz2
     c.save()
 
 
-def generate_passports(output_dir: Path, *, count: int = 5, seed: int = 7) -> None:
+def generate_passports(
+    output_dir: Path,
+    *,
+    count: int = 5,
+    seed: int = 7,
+    manifest_path: Path | None = None,
+) -> None:
     random.seed(seed)
     output_dir.mkdir(parents=True, exist_ok=True)
+    manifest_rows = []
 
     for i in range(1, count + 1):
         pool_name = random.choice(list(NAME_POOLS.keys()))
@@ -160,6 +168,31 @@ def generate_passports(output_dir: Path, *, count: int = 5, seed: int = 7) -> No
         path = output_dir / f"passport_{i:03d}.pdf"
         _write_passport_pdf(path, name, nationality, mrz1, mrz2)
         print(f"Wrote {path}")
+        if manifest_path:
+            manifest_rows.append(
+                {
+                    "path": str(path),
+                    "doc_type": "Passport",
+                    "expected": {
+                        "passport_number": passport_no.strip("<"),
+                        "issuing_country": issuing,
+                        "nationality": nationality,
+                        "surname": last,
+                        "given_names": first,
+                        "birth_date_raw": birth,
+                        "expiry_date_raw": expiry,
+                        "sex": sex,
+                        "mrz_line1": mrz1,
+                        "mrz_line2": mrz2,
+                    },
+                }
+            )
+
+    if manifest_path:
+        manifest_path.write_text(
+            "\n".join(json.dumps(row) for row in manifest_rows) + "\n",
+            encoding="utf-8",
+        )
 
 
 def main() -> None:
@@ -167,9 +200,15 @@ def main() -> None:
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--count", type=int, default=5)
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--manifest", type=Path, default=None, help="Optional JSONL manifest output")
     args = parser.parse_args()
 
-    generate_passports(args.output_dir, count=args.count, seed=args.seed)
+    generate_passports(
+        args.output_dir,
+        count=args.count,
+        seed=args.seed,
+        manifest_path=args.manifest,
+    )
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import random
 from datetime import date
 from pathlib import Path
@@ -358,9 +359,11 @@ def generate_diplomas(
     layout: str = "random",
     text_layout: str = "random",
     stamp_rate: float = 0.6,
+    manifest_path: Path | None = None,
 ) -> None:
     random.seed(seed)
     output_dir.mkdir(parents=True, exist_ok=True)
+    manifest_rows = []
 
     for i in range(1, count + 1):
         if lang == "both":
@@ -436,6 +439,29 @@ def generate_diplomas(
             signature_name=signature_name,
         )
         print(f"Wrote {path}")
+        if manifest_path:
+            manifest_rows.append(
+                {
+                    "path": str(path),
+                    "doc_type": "Degree Certificate",
+                    "expected": {
+                        "holder_name_guess": holder,
+                        "institution_guess": institution,
+                        "degree_type_guess": degree,
+                        "program_guess": program,
+                        "location_guess": location,
+                        "issue_date_guess": issue_date,
+                        "diploma_number_guess": diploma_number,
+                        "is_certified_copy_hint": certified_copy,
+                    },
+                }
+            )
+
+    if manifest_path:
+        manifest_path.write_text(
+            "\n".join(json.dumps(row) for row in manifest_rows) + "\n",
+            encoding="utf-8",
+        )
 
 
 def main() -> None:
@@ -456,6 +482,7 @@ def main() -> None:
         default="random",
     )
     parser.add_argument("--stamp-rate", type=float, default=0.6)
+    parser.add_argument("--manifest", type=Path, default=None, help="Optional JSONL manifest output")
     args = parser.parse_args()
 
     generate_diplomas(
@@ -467,6 +494,7 @@ def main() -> None:
         layout=args.layout,
         text_layout=args.text_layout,
         stamp_rate=args.stamp_rate,
+        manifest_path=args.manifest,
     )
 
 
