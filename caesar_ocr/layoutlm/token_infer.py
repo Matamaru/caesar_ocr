@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Dict, List, Optional, Tuple
 
 import torch
@@ -43,11 +44,7 @@ class TokenInferer:
 
     @classmethod
     def from_model_dir(cls, model_dir: str) -> "TokenInferer":
-        processor = AutoProcessor.from_pretrained(model_dir, apply_ocr=False)
-        model = LayoutLMv3ForTokenClassification.from_pretrained(model_dir)
-        model.eval()
-        id2label = _load_labels(model_dir, model)
-        return cls(model_dir=model_dir, processor=processor, model=model, id2label=id2label)
+        return _load_token_inferer(model_dir)
 
     def infer(self, image: Image.Image, tokens: List[str], bboxes: List[List[int]], *, max_length: int = 512) -> Tuple[List[str], List[float]]:
         width, height = image.size
@@ -101,3 +98,16 @@ def infer_tokens(
     inferer = TokenInferer.from_model_dir(model_dir)
     labels, scores = inferer.infer(image, tokens, bboxes, max_length=max_length)
     return labels, scores
+
+
+@lru_cache(maxsize=4)
+def _load_token_inferer(model_dir: str) -> TokenInferer:
+    processor = AutoProcessor.from_pretrained(model_dir, apply_ocr=False)
+    model = LayoutLMv3ForTokenClassification.from_pretrained(model_dir)
+    model.eval()
+    id2label = _load_labels(model_dir, model)
+    return TokenInferer(model_dir=model_dir, processor=processor, model=model, id2label=id2label)
+
+
+def warm_token_model(model_dir: str) -> None:
+    _load_token_inferer(model_dir)

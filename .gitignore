@@ -18,3 +18,5 @@ sample_data/
 apps/domains/*/sample_docs/
 apps/domains/*/labels/
 apps/domains/*/labels/images/
+.env
+.env

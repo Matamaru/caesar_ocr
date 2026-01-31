@@ -2,7 +2,7 @@
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Sequence
 
 from ..layoutlm.infer import LayoutLMResult, analyze_bytes_layoutlm
 from ..layoutlm.token_infer import TokenInferer
@@ -77,38 +77,24 @@ class AssistantToolResult:
         return data
 
 
-def analyze_document_bytes(
-    file_bytes: bytes,
-    layoutlm_model_dir: Optional[str] = None,
+def analyze_document_pages(
+    pages: Sequence,
+    ocr_result: OcrResult,
     *,
-    lang: str = "eng+deu",
+    file_bytes: Optional[bytes] = None,
+    layoutlm_model_dir: Optional[str] = None,
     layoutlm_lang: Optional[str] = None,
-    regex_rules_path: Optional[str] = None,
-    regex_debug: bool = False,
     layoutlm_token_model_dir: Optional[str] = None,
 ) -> AssistantToolResult:
-    """Analyze bytes with OCR and optional LayoutLM classifier."""
-    pages = load_images_from_bytes(file_bytes, dpi=300)
-    ocr_result = analyze_pages(pages, lang=lang)
+    """Build a full pipeline result from precomputed OCR pages/results."""
     page_items = []
     layoutlm_result = None
-    if layoutlm_model_dir:
+    if layoutlm_model_dir and file_bytes:
         layoutlm_result = analyze_bytes_layoutlm(
             file_bytes,
             model_dir=layoutlm_model_dir,
             lang=layoutlm_lang,
         )
-    if regex_rules_path:
-        rules = load_rules(Path(regex_rules_path))
-        regex_fields = run_rules(ocr_result.ocr_text, rules, debug=regex_debug)
-        if regex_fields:
-            ocr_result.fields.update(regex_fields)
-    # Always add lightweight doc type hints from OCR text.
-    doc_hints = infer_present_docs(ocr_result.ocr_text)
-    if doc_hints:
-        ocr_result.fields.setdefault("doc_hints", sorted(doc_hints))
-        if ocr_result.doc_type in (None, "", "unknown"):
-            ocr_result.doc_type = sorted(doc_hints)[0]
     layout = None
     layoutlm_tokens = None
     token_labels_by_page: dict[int, List[str]] = {}
@@ -165,7 +151,7 @@ def analyze_document_bytes(
         ocr=OcrDocument(
             doc_id=None,
             doc_type=ocr_result.doc_type,
-            language=lang,
+            language=None,
             pages=page_items,
             fields=ocr_result.fields,
         ),
@@ -173,3 +159,39 @@ def analyze_document_bytes(
         layoutlm_tokens=layoutlm_tokens,
     )
     return AssistantToolResult(ocr=ocr_result, layoutlm=layoutlm_result, schema=schema)
+
+
+def analyze_document_bytes(
+    file_bytes: bytes,
+    layoutlm_model_dir: Optional[str] = None,
+    *,
+    lang: str = "eng+deu",
+    layoutlm_lang: Optional[str] = None,
+    regex_rules_path: Optional[str] = None,
+    regex_debug: bool = False,
+    layoutlm_token_model_dir: Optional[str] = None,
+) -> AssistantToolResult:
+    """Analyze bytes with OCR and optional LayoutLM classifier."""
+    pages = load_images_from_bytes(file_bytes, dpi=300)
+    ocr_result = analyze_pages(pages, lang=lang)
+    if regex_rules_path:
+        rules = load_rules(Path(regex_rules_path))
+        regex_fields = run_rules(ocr_result.ocr_text, rules, debug=regex_debug)
+        if regex_fields:
+            ocr_result.fields.update(regex_fields)
+    # Always add lightweight doc type hints from OCR text.
+    doc_hints = infer_present_docs(ocr_result.ocr_text)
+    if doc_hints:
+        ocr_result.fields.setdefault("doc_hints", sorted(doc_hints))
+        if ocr_result.doc_type in (None, "", "unknown"):
+            ocr_result.doc_type = sorted(doc_hints)[0]
+    result = analyze_document_pages(
+        pages,
+        ocr_result,
+        file_bytes=file_bytes,
+        layoutlm_model_dir=layoutlm_model_dir,
+        layoutlm_lang=layoutlm_lang,
+        layoutlm_token_model_dir=layoutlm_token_model_dir,
+    )
+    result.schema.ocr.language = lang
+    return result

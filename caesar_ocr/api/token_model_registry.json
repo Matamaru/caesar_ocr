@@ -1,0 +1,4 @@
+{
+  "passport": "s3://anerkennung-models/models/passport/passport-layoutlmv3-token/",
+  "degree_certificate": "s3://anerkennung-models/models/diploma/diploma_layoutlmv3-token/"
+}

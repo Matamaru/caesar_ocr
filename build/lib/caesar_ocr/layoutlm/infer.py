@@ -5,6 +5,7 @@ infer means to deduce or conclude information from evidence and reasoning rather
 """
 
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Dict, List, Optional, Tuple
 
 from ..io.loaders import load_images_from_bytes
@@ -42,6 +43,45 @@ def _build_label_maps(labels: Optional[List[str]]) -> Tuple[Optional[Dict[str, i
     return label2id, id2label
 
 
+def _resolve_device(device: Optional[str]) -> Optional[str]:
+    if device is None and torch.cuda.is_available():
+        return "cuda"
+    return device
+
+
+@lru_cache(maxsize=4)
+def _load_layoutlm_components(
+    model_dir: str,
+    processor_name: str,
+    labels_key: Optional[Tuple[str, ...]],
+    device: Optional[str],
+):
+    label2id, id2label = _build_label_maps(list(labels_key) if labels_key else None)
+    processor = AutoProcessor.from_pretrained(processor_name)
+    model = AutoModelForSequenceClassification.from_pretrained(
+        model_dir,
+        num_labels=len(labels_key) if labels_key else None,
+        id2label=id2label,
+        label2id=label2id,
+    )
+    model.eval()
+    if device:
+        model.to(device)
+    return processor, model
+
+
+def warm_layoutlm_model(
+    model_dir: str,
+    *,
+    processor_name: Optional[str] = None,
+    labels: Optional[List[str]] = None,
+    device: Optional[str] = None,
+) -> None:
+    resolved_device = _resolve_device(device)
+    labels_key = tuple(labels) if labels else None
+    _load_layoutlm_components(model_dir, processor_name or model_dir, labels_key, resolved_device)
+
+
 def analyze_bytes_layoutlm(
     file_bytes: bytes,
     model_dir: str,
@@ -65,35 +105,19 @@ def analyze_bytes_layoutlm(
     # Load the first page image from the input bytes
     image = _load_image_from_bytes(file_bytes)
 
-    # Label mappings for the model. Necessary for correct classification.
-    label2id, id2label = _build_label_maps(labels)
-
-    # Load processor and model
-    # processor is responsible for preparing inputs for the model
-    processor = AutoProcessor.from_pretrained(processor_name or model_dir)
-
-    # Load the pretrained LayoutLM model for sequence classification
-    # choose different trained models for different document types
-    model = AutoModelForSequenceClassification.from_pretrained(
+    resolved_device = _resolve_device(device)
+    labels_key = tuple(labels) if labels else None
+    processor, model = _load_layoutlm_components(
         model_dir,
-        num_labels=len(labels) if labels else None,
-        id2label=id2label,
-        label2id=label2id,
+        processor_name or model_dir,
+        labels_key,
+        resolved_device,
     )
-
-    # Set model to evaluation mode and move to device if specified
-    model.eval()
-
-    # Move model to the specified device if available
-    if device is None and torch.cuda.is_available():
-        device = "cuda"
-    if device:
-        model.to(device)
 
     # Prepare inputs and run inference
     encoding = processor(images=image, return_tensors="pt", lang=lang)
-    if device:
-        encoding = {k: v.to(device) for k, v in encoding.items()}
+    if resolved_device:
+        encoding = {k: v.to(resolved_device) for k, v in encoding.items()}
 
     # Disable gradient calculations for inference
     # Necessary for efficiency and to avoid unnecessary memory usage

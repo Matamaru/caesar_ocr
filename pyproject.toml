@@ -40,6 +40,7 @@ caesar-ocr-infer-token = "caesar_ocr.cli_infer_token:main"
 
 [project.optional-dependencies]
 test = ["pytest"]
+api = ["fastapi", "uvicorn[standard]", "python-multipart", "boto3"]
 
 [tool.pytest.ini_options]
 filterwarnings = [
