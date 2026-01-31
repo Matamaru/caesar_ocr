@@ -165,8 +165,9 @@ def _extract_passport_data_from_mrz(mrz_lines: List[str]) -> Dict[str, Any]:
     # L2: PASSPORTNO<CHECK>CCYYMMDD<CHECK>SEX EXP<CHK>NatID<CHK> <<optional
     if len(mrz_lines) >= 2:
         # Clean lines and uppercase
-        l1 = mrz_lines[0].replace(" ", "").upper()
-        l2 = mrz_lines[1].replace(" ", "").upper()
+        l1 = _normalize_mrz_line(mrz_lines[0])
+        l2 = _normalize_mrz_line(mrz_lines[1], numeric=True)
+        l2 = _coerce_mrz_line2(l2)
 
         # Add to output
         out = {"mrz_line1": l1, "mrz_line2": l2}
@@ -188,6 +189,46 @@ def _extract_passport_data_from_mrz(mrz_lines: List[str]) -> Dict[str, Any]:
             # Keep partial output; MRZ OCR is often imperfect.
             pass
     return out
+
+
+def _normalize_mrz_line(line: str, *, numeric: bool = False) -> str:
+    """Normalize common OCR mistakes in MRZ lines."""
+    line = line.replace(" ", "").upper()
+    # Replace common misreads in MRZ fillers
+    line = re.sub(r"[C€]", "<", line)
+    if numeric:
+        line = line.replace("O", "0").replace("I", "1").replace("L", "1").replace("S", "5").replace("B", "8").replace("Z", "2")
+    # Keep only MRZ-valid characters
+    cleaned = []
+    for ch in line:
+        if "A" <= ch <= "Z" or "0" <= ch <= "9" or ch == "<":
+            cleaned.append(ch)
+    return "".join(cleaned)
+
+
+def _coerce_mrz_line2(line: str) -> str:
+    """Try to extract a valid TD3 line-2 substring from a noisy line."""
+    if len(line) == 44 and _is_valid_line2(line):
+        return line
+    for i in range(0, max(len(line) - 43, 0)):
+        candidate = line[i : i + 44]
+        if len(candidate) == 44 and _is_valid_line2(candidate):
+            return candidate
+    # Fallback: trim/pad to 44.
+    if len(line) > 44:
+        return line[:44]
+    return line.ljust(44, "<")
+
+
+def _is_valid_line2(line: str) -> bool:
+    """Basic TD3 line-2 shape validation."""
+    if len(line) != 44:
+        return False
+    # Passport number (9), check digit, nationality (3), birth date (6), check digit,
+    # sex (1), expiry (6), check digit, personal number (14), check digit, final check (1)
+    if not re.match(r"^[A-Z0-9<]{9}[0-9][A-Z]{3}[0-9]{6}[0-9][MF<][0-9]{6}[0-9][A-Z0-9<]{14}[0-9][0-9]$", line):
+        return False
+    return True
 
 
 def extract_passport_fields(predictions: List[str], *, ocr_text: str | None = None) -> Dict[str, Any]:
