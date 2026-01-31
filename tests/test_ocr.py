@@ -49,6 +49,17 @@ def test_extract_passport_fields_fallback():
     assert fields.get("passport_number") == "X1234567"
 
 
+def test_extract_passport_fields_from_ocr_text_lines():
+    predictions = ["passport", "name", "foo"]
+    ocr_text = (
+        "Passport Name: Anna Example\n"
+        "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\n"
+        "L898902C36UTO7408122F1204159ZE184226B<<<<<10\n"
+    )
+    fields = ocr.extract_passport_fields(predictions, ocr_text=ocr_text)
+    assert fields.get("passport_number") == "L898902C3"
+
+
 def test_extract_financial_report_fields():
     text = (
         "Invoice No: ABC-123\n"

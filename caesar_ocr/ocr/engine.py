@@ -45,7 +45,7 @@ def _ocr_tokens(preprocessed_im, lang: str = "eng+deu", psm: int = 6) -> tuple[s
 
 
 def detect_mrz_lines(all_predictions: List[str]) -> List[str]:
-    """Return candidate MRZ lines (heuristic: contains multiple '<' chars)."""
+    """Return candidate MRZ lines from token-level predictions."""
     mrz_lines = []
 
     # MRZ lines are dense with '<' fillers; 3+ is a cheap signal.
@@ -53,6 +53,17 @@ def detect_mrz_lines(all_predictions: List[str]) -> List[str]:
         if line.count("<") >= 3:
             mrz_lines.append(line)
 
+    return mrz_lines
+
+
+def detect_mrz_lines_from_text(ocr_text: str) -> List[str]:
+    """Return candidate MRZ lines from OCR text lines."""
+    if not ocr_text:
+        return []
+    mrz_lines = []
+    for line in ocr_text.splitlines():
+        if line.count("<") >= 3:
+            mrz_lines.append(line)
     return mrz_lines
 
 
@@ -133,10 +144,14 @@ def _extract_passport_data_from_mrz(mrz_lines: List[str]) -> Dict[str, Any]:
     return out
 
 
-def extract_passport_fields(predictions: List[str]) -> Dict[str, Any]:
-    """Extract passport-like fields from OCR predictions."""
-    passport_data = _extract_passport_data_from_mrz(detect_mrz_lines(predictions))
-    ocr_text = "\n".join(predictions)
+def extract_passport_fields(predictions: List[str], *, ocr_text: str | None = None) -> Dict[str, Any]:
+    """Extract passport-like fields from OCR tokens and/or raw OCR text."""
+    text_for_mrz = ocr_text or ""
+    mrz_lines = detect_mrz_lines_from_text(text_for_mrz)
+    if not mrz_lines:
+        mrz_lines = detect_mrz_lines(predictions)
+    passport_data = _extract_passport_data_from_mrz(mrz_lines)
+    ocr_text = text_for_mrz or "\n".join(predictions)
     # Fallback: look for a labeled passport number in body text.
     if "passport_number" not in passport_data:
         m = re.search(r"(passport|passnummer|passport no)\s*[:\-]?\s*([A-Z0-9]{6,})", ocr_text, re.I)
@@ -264,7 +279,7 @@ def analyze_pages(pages: Sequence, *, lang: str = "eng+deu") -> OcrResult:
     fields: Dict[str, Any] = {}
 
     if doc_type == "Passport":
-        fields = extract_passport_fields(predictions)
+        fields = extract_passport_fields(predictions, ocr_text=ocr_text)
     elif doc_type == "Degree Certificate":
         fields = extract_diploma_fields(ocr_text)
     elif doc_type == "Financial Report":
