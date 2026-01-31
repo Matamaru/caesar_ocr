@@ -149,10 +149,14 @@ def _warm_models(app: FastAPI) -> None:
     cache_root = Path(_get_env("CAESAR_MODEL_CACHE_DIR") or "/tmp/models")
     token_map = _load_token_model_map()
     if token_map:
-        for doc_key, uri in token_map.items():
+        app.state.token_model_uris.update(token_map)
+    prefetch_models = _env_bool("CAESAR_PREFETCH_MODELS", default=False)
+    eager_warm = _env_bool("CAESAR_WARM_TOKEN_MODELS", default=False)
+
+    if prefetch_models and app.state.token_model_uris:
+        for doc_key, uri in app.state.token_model_uris.items():
             local_dir = _download_s3_prefix(uri, cache_root)
             app.state.token_model_paths[doc_key] = str(local_dir)
-    eager_warm = _env_bool("CAESAR_WARM_TOKEN_MODELS", default=False)
 
     token_model_dir = _get_env("CAESAR_LAYOUTLM_TOKEN_MODEL_DIR")
     if token_model_dir:
@@ -181,6 +185,25 @@ def _warm_models(app: FastAPI) -> None:
             raise
 
 
+def _resolve_token_model_dir(app: FastAPI, doc_key: str) -> Optional[str]:
+    token_model_dir = _get_env("CAESAR_LAYOUTLM_TOKEN_MODEL_DIR")
+    if token_model_dir:
+        return token_model_dir
+
+    cached = app.state.token_model_paths.get(doc_key)
+    if cached:
+        return cached
+
+    uri = app.state.token_model_uris.get(doc_key)
+    if not uri:
+        return None
+
+    cache_root = Path(_get_env("CAESAR_MODEL_CACHE_DIR") or "/tmp/models")
+    local_dir = _download_s3_prefix(uri, cache_root)
+    app.state.token_model_paths[doc_key] = str(local_dir)
+    return str(local_dir)
+
+
 def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -189,6 +212,7 @@ def create_app() -> FastAPI:
 
     app = FastAPI(title="caesar_ocr API", lifespan=lifespan)
     app.state.token_model_paths = {}
+    app.state.token_model_uris = {}
 
     @app.post("/analyze")
     async def analyze(file: UploadFile = File(...), doc_hint: str | None = None) -> dict:
@@ -206,9 +230,7 @@ def create_app() -> FastAPI:
         )
 
         doc_key = _normalize_doc_key(doc_hint or ocr_result.doc_type or "")
-        token_model_dir = _get_env("CAESAR_LAYOUTLM_TOKEN_MODEL_DIR")
-        if token_model_dir is None:
-            token_model_dir = app.state.token_model_paths.get(doc_key)
+        token_model_dir = _resolve_token_model_dir(app, doc_key)
         layoutlm_model_dir = _get_env("CAESAR_LAYOUTLM_MODEL_DIR")
 
         result = analyze_document_pages(
