@@ -195,7 +195,7 @@ def _normalize_mrz_line(line: str, *, numeric: bool = False) -> str:
     """Normalize common OCR mistakes in MRZ lines."""
     line = line.replace(" ", "").upper()
     # Replace common misreads in MRZ fillers
-    line = re.sub(r"[C€]", "<", line)
+    line = re.sub(r"[CE€]", "<", line)
     if numeric:
         line = line.replace("O", "0").replace("I", "1").replace("L", "1").replace("S", "5").replace("B", "8").replace("Z", "2")
     # Keep only MRZ-valid characters
@@ -238,6 +238,21 @@ def extract_passport_fields(predictions: List[str], *, ocr_text: str | None = No
     if not mrz_lines:
         mrz_lines = detect_mrz_lines(predictions)
     passport_data = _extract_passport_data_from_mrz(mrz_lines)
+    # If line2 parsing looks off, try to recover from full OCR text.
+    if ocr_text and (not passport_data.get("nationality") or not passport_data.get("birth_date_raw")):
+        cleaned = _normalize_mrz_line(ocr_text, numeric=True)
+        recovered_line2 = _find_mrz_line2(cleaned)
+        if recovered_line2:
+            recovered_line2 = _coerce_mrz_line2(recovered_line2)
+            try:
+                passport_data.setdefault("mrz_line2", recovered_line2)
+                passport_data["passport_number"] = recovered_line2[0:9].replace("<", "").strip()
+                passport_data["nationality"] = recovered_line2[10:13]
+                passport_data["birth_date_raw"] = recovered_line2[13:19]
+                passport_data["sex"] = recovered_line2[20:21]
+                passport_data["expiry_date_raw"] = recovered_line2[21:27]
+            except Exception:
+                pass
     ocr_text = text_for_mrz or "\n".join(predictions)
     # Fallback: look for a labeled passport number in body text.
     if "passport_number" not in passport_data:
